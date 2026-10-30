@@ -1,0 +1,384 @@
+/* ── Estilos compartidos de las páginas de gestión ── */
+
+.adm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.adm-header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #010231;
+  margin: 0 0 6px 0;
+}
+
+.adm-header p {
+  color: #888;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* Botones */
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #010231;
+  color: #fff;
+  border: 1px solid #010231;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+
+.adm-btn:hover { opacity: 0.9; }
+.adm-btn:disabled, .adm-btn.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.adm-btn i { font-size: 1.1rem; }
+
+.adm-btn--small { padding: 6px 12px; font-size: 0.82rem; border-radius: 8px; }
+.adm-btn--ghost { background: #fff; color: #010231; border-color: #d5d8e3; }
+.adm-btn--danger { background: #c62828; border-color: #c62828; }
+
+.adm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+}
+
+.adm-icon-btn:hover { background: #eef0f6; color: #010231; }
+.adm-icon-btn--danger:hover { background: #fdecea; color: #c62828; }
+.adm-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Barra de filtros */
+.adm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.adm-toolbar input,
+.adm-toolbar select {
+  height: 40px;
+  border: 1px solid #d5d8e3;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  font-size: 0.9rem;
+  min-width: 200px;
+  /* Materialize aplica estilos globales a inputs */
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.adm-toolbar select { display: block; min-width: 160px; }
+
+/* Tabla */
+.adm-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(1, 2, 49, 0.07);
+  overflow: hidden;
+}
+
+.adm-table-wrap { overflow-x: auto; }
+
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.adm-table th {
+  text-align: left;
+  font-weight: 600;
+  color: #666;
+  background: #f8f9fc;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.adm-table td {
+  padding: 12px 16px;
+  border-top: 1px solid #eef0f6;
+  vertical-align: middle;
+}
+
+.adm-table tr.is-inactive td { opacity: 0.55; }
+.adm-table td.adm-actions { white-space: nowrap; text-align: right; }
+
+.adm-thumb {
+  width: 56px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #eef0f6;
+  display: block;
+}
+
+.adm-muted { color: #888; font-size: 0.82rem; }
+
+/* Badges */
+.adm-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.adm-badge--ok { background: #e6f4ea; color: #1e7e34; }
+.adm-badge--off { background: #eceff1; color: #607d8b; }
+.adm-badge--warn { background: #fff4e5; color: #b26a00; }
+.adm-badge--info { background: #e8f0fe; color: #1a56db; }
+.adm-badge--danger { background: #fdecea; color: #c62828; }
+
+/* Alertas y estados vacíos */
+.adm-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+.adm-alert .adm-btn { margin-left: auto; }
+.adm-alert--error { background: #fdecea; color: #b71c1c; }
+.adm-alert--ok { background: #e6f4ea; color: #1e7e34; }
+.adm-alert--warn { background: #fff4e5; color: #b26a00; }
+
+.adm-empty {
+  text-align: center;
+  color: #999;
+  padding: 48px 16px;
+}
+
+.adm-empty i { font-size: 2.6rem; display: block; margin-bottom: 8px; }
+
+/* Modal */
+.adm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 2, 49, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.adm-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.adm-modal--wide { max-width: 860px; }
+
+.adm-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid #eef0f6;
+}
+
+.adm-modal-header h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #010231;
+  margin: 0;
+}
+
+.adm-modal-body {
+  padding: 22px;
+  overflow-y: auto;
+}
+
+.adm-confirm-text { color: #444; margin: 0 0 16px 0; }
+
+/* Formularios */
+.adm-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.adm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.adm-field--full,
+.adm-form > .adm-alert { grid-column: 1 / -1; }
+
+.adm-form > .adm-alert { margin: 0; }
+
+.adm-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #444;
+}
+
+.adm-field-hint { font-size: 0.76rem; color: #999; }
+
+.adm-field input:not([type='checkbox']),
+.adm-field select,
+.adm-field textarea {
+  border: 1px solid #d5d8e3 !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  font-size: 0.92rem;
+  background: #fff;
+  height: auto !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  box-shadow: none !important;
+  width: 100%;
+  display: block;
+}
+
+.adm-field input:focus,
+.adm-field select:focus,
+.adm-field textarea:focus {
+  border-color: #010231 !important;
+  outline: none;
+}
+
+.adm-field textarea { resize: vertical; min-height: 80px; }
+
+.adm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #444;
+  cursor: pointer;
+}
+
+/* Materialize oculta los checkbox nativos: se restauran en el panel */
+.adm-check input[type='checkbox'] {
+  position: static !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.adm-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Selector de imagen */
+.adm-image-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.adm-image-picker .adm-alert { flex-basis: 100%; margin: 0; }
+
+.adm-image-preview {
+  width: 120px;
+  height: 80px;
+  border-radius: 10px;
+  background: #eef0f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #aaa;
+}
+
+.adm-image-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+.adm-image-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Galería de imágenes */
+.adm-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.adm-gallery-item {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 2px 10px rgba(1, 2, 49, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.adm-gallery-item.is-selected { border-color: #00897b; }
+
+.adm-gallery-item img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: #eef0f6;
+}
+
+.adm-gallery-item span,
+.adm-gallery-meta {
+  display: block;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  color: #555;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-gallery-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@media (max-width: 700px) {
+  .adm-form { grid-template-columns: 1fr; }
+  .adm-toolbar input, .adm-toolbar select { min-width: 0; flex: 1; }
+}

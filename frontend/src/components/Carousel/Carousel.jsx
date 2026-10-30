@@ -1,0 +1,108 @@
+import { useState, useRef, useEffect } from 'react';
+import { Carousel as BSCarousel } from 'react-bootstrap';
+import { getCarruselApi, mediaUrl } from '../../services/api';
+import './Carousel.css';
+
+// Slides por defecto: se usan mientras no haya slides activos creados desde el panel de admin
+const defaultSlides = [
+  { 
+    img: '/img/canchapadel.jpg', 
+    title: 'Canchas Premium', 
+    subtitle: 'Superficies profesionales con los mejores estándares' 
+  },
+  { 
+    img: '/img/canchapadel1.jpg', 
+    title: 'Instalaciones de Primera', 
+    subtitle: 'Espacios modernos equipados con iluminación LED' 
+  },
+  { 
+    img: '/img/padel1.jpg',
+    title: 'Nuestra Tienda', 
+    subtitle: 'Todo lo que necesitas para jugar al más alto nivel' 
+  },
+];
+
+function MyCarousel() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [slides, setSlides] = useState(defaultSlides);
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCarruselApi()
+      .then(res => {
+        const fromApi = res.data
+          .filter(s => s.imagen_id?.url)
+          .map(s => ({ img: mediaUrl(s.imagen_id.url), title: s.titulo, subtitle: s.subtitulo }));
+        if (!cancelled && fromApi.length) setSlides(fromApi);
+      })
+      .catch(() => { /* sin backend: se mantienen los slides por defecto */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSelect = (selectedIndex) => {
+    if (selectedIndex !== 0) {
+      videoRef.current?.pause();
+    } else {
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+    }
+    setActiveIndex(selectedIndex);
+  };
+
+  return (
+    <div className="carousel-root-container">
+      <BSCarousel
+        fade={true}
+        activeIndex={activeIndex}
+        onSelect={handleSelect}
+        interval={activeIndex === 0 ? null : 4000}
+        controls={true}
+        indicators={true}
+        pause={false}
+        className="main-bootstrap-carousel"
+      >
+        {/* Primer slide: VIDEO */}
+      <BSCarousel.Item className="video-slide">
+        <div className="img-container">
+          <video
+            ref={videoRef}
+            className="d-block w-100 carousel-img"
+            src="/img/videopadel1.mp4"
+            autoPlay
+            muted
+            playsInline
+            onEnded={() => handleSelect(1)}
+          />
+        </div>
+        <div className="carousel-overlay video-overlay">
+          <h2 className="overlay-title">¡Bienvenidos a PadelZone!</h2>
+          <p className="overlay-subtitle">El mejor lugar para jugar, aprender y disfrutar del pádel</p>
+        </div>
+      </BSCarousel.Item>
+
+        {/* Slides de imágenes */}
+        {slides.map((slide, index) => (
+          <BSCarousel.Item key={slide.img + index}>
+            <div className="img-container">
+              <img
+                className="d-block w-100 carousel-img"
+                src={slide.img}
+                alt={slide.title}
+              />
+            </div>
+            <div className="carousel-overlay">
+              <h2 className="overlay-title">{slide.title}</h2>
+              <p className="overlay-subtitle">{slide.subtitle}</p>
+            </div>
+          </BSCarousel.Item>
+        ))}
+
+      </BSCarousel>
+    </div>
+  );
+}
+
+export default MyCarousel;

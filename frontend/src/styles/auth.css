@@ -1,0 +1,143 @@
+/* Estilos compartidos de Iniciar sesión y Crear cuenta.
+   Se importa después del CSS de cada página para unificar su aspecto con el
+   resto del sitio (azul marino + verde). Los !important de los campos son
+   necesarios porque Materialize pone a los inputs un estilo de línea inferior
+   con selectores más específicos. */
+
+/* ─── Cabecera: misma superposición que el resto de páginas ─── */
+.login-header,
+.register-header {
+  background:
+    linear-gradient(120deg, rgba(1, 2, 49, 0.88) 0%, rgba(1, 2, 49, 0.7) 55%, rgba(0, 137, 123, 0.75) 100%),
+    url('/img/canchapadel1.jpg') center/cover no-repeat !important;
+  padding: 64px 20px !important;
+}
+
+.login-header {
+  background:
+    linear-gradient(120deg, rgba(1, 2, 49, 0.88) 0%, rgba(1, 2, 49, 0.7) 55%, rgba(0, 137, 123, 0.75) 100%),
+    url('/img/login.jpg') center/cover no-repeat !important;
+}
+
+.login-header h1,
+.register-header h1 {
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ─── Campos ─── */
+.login-form input.login-input,
+.register-form input.register-input {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 50px !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+  border: 1.5px solid #d5d8e3 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  font-size: 0.98rem !important;
+  color: #1f2333 !important;
+  box-shadow: none !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.login-form input.login-input::placeholder,
+.register-form input.register-input::placeholder {
+  color: #a7adbd;
+}
+
+.login-form input.login-input:focus,
+.register-form input.register-input:focus {
+  border-color: #010231 !important;
+  box-shadow: 0 0 0 4px rgba(1, 2, 49, 0.08) !important;
+}
+
+.login-form input.login-input[aria-invalid='true'],
+.register-form input.register-input[aria-invalid='true'] {
+  border-color: #e53935 !important;
+}
+
+/* ─── Mostrar / ocultar contraseña ─── */
+.password-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-form input.login-input-password,
+.register-form input.register-input-password {
+  padding-right: 52px !important;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: #6b7285;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  background: rgba(1, 2, 49, 0.06);
+  color: #010231;
+}
+
+.password-toggle .material-icons {
+  font-size: 20px;
+}
+
+/* ─── Botones con los colores de la marca ─── */
+.login-btn,
+.register-btn {
+  background: #010231 !important;
+  box-shadow: 0 6px 18px rgba(1, 2, 49, 0.18) !important;
+}
+
+.login-btn:hover:not(:disabled),
+.register-btn:hover:not(:disabled) {
+  background: #0b0e4a !important;
+}
+
+.login-btn-loading,
+.register-btn-loading {
+  background: #2c3060 !important;
+}
+
+/* El secundario ("Crear cuenta" en el login) va con borde para no competir con el principal */
+.login-btn-guest {
+  background: #fff !important;
+  color: #010231 !important;
+  border: 2px solid #010231 !important;
+  box-shadow: none !important;
+}
+
+.login-btn-guest:hover {
+  background: #010231 !important;
+  color: #fff !important;
+}
+
+.forgot-password-link,
+.register-form a,
+.login-form a {
+  color: #00796b !important;
+}
+
+.register-form [type='checkbox'] + span:not(.lever)::before {
+  border-color: #6b7285;
+}
+
+.register-form [type='checkbox']:checked + span:not(.lever)::before {
+  border-color: transparent #00897b #00897b transparent;
+}

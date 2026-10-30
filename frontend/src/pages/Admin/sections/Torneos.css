@@ -1,0 +1,150 @@
+/* Gestión de torneos — mismos colores del panel (#010231 y #00897b) */
+
+.tor-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.tor-btn-teal { background: #00897b; border-color: #00897b; }
+
+.tor-btn-danger { color: #c62828; }
+.tor-btn-danger:hover { background: #fdecea; border-color: #f5c2c0; }
+
+/* Cupo ocupado */
+.tor-cupo { min-width: 90px; }
+.tor-cupo span { font-size: 0.88rem; }
+
+.tor-cupo-bar {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: #eef0f6;
+  overflow: hidden;
+}
+
+.tor-cupo-bar div {
+  height: 100%;
+  background: #00897b;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* Spinner del botón exportar */
+.tor-spin { animation: tor-spin 0.9s linear infinite; }
+
+@keyframes tor-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Detalle */
+.tor-detalle-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.tor-detalle-head .tor-acciones { margin-left: auto; }
+
+.tor-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #eef0f6;
+  margin-bottom: 16px;
+}
+
+.tor-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #666;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.tor-tabs button i { font-size: 1.1rem; }
+.tor-tabs button:hover { color: #010231; }
+.tor-tabs button.is-active { color: #010231; border-bottom-color: #00897b; }
+
+/* Equipos */
+.tor-equipos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.tor-equipo {
+  border: 1px solid #e3e6ef;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.tor-equipo-head {
+  background: #010231;
+  color: #fff;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.tor-equipo ul,
+.tor-sin-pareja ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tor-integrante {
+  padding: 10px 14px;
+  border-top: 1px solid #eef0f6;
+}
+
+.tor-equipo .tor-integrante:first-child { border-top: none; }
+
+.tor-integrante-nombre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.tor-integrante-nombre i { font-size: 1.1rem; color: #00897b; }
+
+.tor-integrante .adm-muted { word-break: break-word; }
+
+.tor-sin-pareja {
+  margin-top: 16px;
+  border: 1px solid #ffd8a8;
+  border-radius: 12px;
+  background: #fffaf2;
+  overflow: hidden;
+}
+
+.tor-sin-pareja-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #fff4e5;
+  color: #b26a00;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.tor-sin-pareja .tor-integrante:first-child { border-top: none; }
+
+@media (max-width: 700px) {
+  .tor-acciones { justify-content: flex-start; }
+  .tor-detalle-head .tor-acciones { margin-left: 0; }
+}

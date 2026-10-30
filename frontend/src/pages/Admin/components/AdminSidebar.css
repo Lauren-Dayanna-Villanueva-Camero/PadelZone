@@ -1,0 +1,129 @@
+/*
+ * Los selectores van anidados bajo .admin-sidebar para ganar en especificidad
+ * a los estilos globales de Materialize sobre <nav> (fondo #ee6e73, altura fija
+ * de 56/64px, line-height y sombra) y a los de Bootstrap sobre <a>.
+ */
+.admin-sidebar {
+  width: 240px;
+  height: 100vh;
+  background-color: #010231;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.admin-sidebar .admin-sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+.admin-sidebar .admin-sidebar-logo img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.admin-sidebar .admin-sidebar-logo span {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 1px;
+}
+
+.admin-sidebar .admin-sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Anula los estilos de Materialize para <nav> */
+  width: 100%;
+  height: auto;
+  line-height: normal;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.admin-sidebar .admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  color: rgba(255,255,255,0.65);
+  background-color: transparent;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: normal;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  border-left: 3px solid transparent;
+}
+
+.admin-sidebar .admin-nav-link:hover {
+  color: #ffffff;
+  background-color: rgba(255,255,255,0.08);
+}
+
+.admin-sidebar .admin-nav-link.active {
+  color: #ffffff;
+  background-color: rgba(255,255,255,0.12);
+  border-left-color: #00897b;
+}
+
+.admin-sidebar .admin-nav-link i {
+  display: inline-block;
+  font-size: 1.2rem;
+  height: auto;
+  line-height: 1;
+}
+
+.admin-sidebar .admin-sidebar-footer {
+  flex-shrink: 0;
+  padding: 16px 0;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.admin-sidebar .admin-sidebar-user {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.8rem;
+  padding: 0 20px 8px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* En pantallas pequeñas el sidebar pasa a ser una barra horizontal desplazable */
+@media (max-width: 900px) {
+  .admin-sidebar {
+    position: sticky;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .admin-sidebar .admin-sidebar-logo { padding: 12px 16px; border-bottom: none; }
+  .admin-sidebar .admin-sidebar-logo span { display: none; }
+  .admin-sidebar .admin-sidebar-nav { flex: none; flex-direction: row; padding: 0; gap: 0; overflow: visible; }
+  .admin-sidebar .admin-sidebar-footer { border-top: none; padding: 0; display: flex; }
+  .admin-sidebar .admin-sidebar-user { display: none; }
+  .admin-sidebar .admin-nav-link { padding: 0 12px; border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .admin-sidebar .admin-nav-link.active { border-bottom-color: #00897b; }
+  .admin-sidebar .admin-nav-link span { font-size: 0.82rem; }
+}

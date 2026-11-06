@@ -1,5 +1,6 @@
 import Torneo from '../models/torneo.model.js'
 import Participante from '../models/participante.model.js'
+import Partido from '../models/partido.model.js'
 
 // Las fechas de los torneos se guardan como medianoche UTC del día elegido
 // ('2026-10-22' → 2026-10-22T00:00:00Z). Para comparar se toma el día local
@@ -124,6 +125,10 @@ export const organizarEquipos = async (torneoId) => {
     })))
   }
 
+  // Con parejas nuevas el cuadro anterior deja de valer (cerrar inscripciones,
+  // reorganizar o poner en curso a mano pasan por aquí)
+  await generarCuadro(torneoId)
+
   return { total_equipos: equipos.length, sin_pareja: sinPareja }
 }
 
@@ -142,8 +147,10 @@ export const cerrarInscripciones = async (torneoId) => {
 }
 
 // Al volver a abrir inscripciones la organización anterior deja de valer
-export const limpiarEquipos = (torneoId) =>
-  Participante.updateMany({ torneo_id: torneoId }, { equipo: null })
+export const limpiarEquipos = async (torneoId) => {
+  await Participante.updateMany({ torneo_id: torneoId }, { equipo: null })
+  await Partido.deleteMany({ torneo_id: torneoId })
+}
 
 // Mensaje para la respuesta cuando alguien quedó sin pareja
 export const avisoSinPareja = async (sinPareja) => {
@@ -194,5 +201,112 @@ export const obtenerOrganizacion = async (torneoId) => {
     participantes,
     equipos,
     sin_pareja_asignada: sinPareja.map(p => integrante(p.usuario_id, p))
+  }
+}
+
+// ─── Cuadro de eliminación ──────────────────────────
+
+// Orden clásico de siembra: en un cuadro de 8 → [1, 8, 4, 5, 2, 7, 3, 6].
+// Cada par consecutivo es una llave; la semilla 1 y la 2 solo se cruzan en la final.
+const ordenSemillas = (tamano) => {
+  let orden = [1]
+  while (orden.length < tamano) {
+    const total = orden.length * 2 + 1
+    orden = orden.flatMap(s => [s, total - s])
+  }
+  return orden
+}
+
+const nombresRonda = ['Final', 'Semifinal', 'Cuartos', 'Octavos', 'Dieciseisavos']
+export const nombreRonda = (ronda, totalRondas) =>
+  nombresRonda[totalRondas - ronda] ?? `Ronda ${ronda}`
+
+// Llave de la ronda siguiente a la que pasa el ganador de un partido
+export const llaveSiguiente = ({ ronda, posicion }) => ({
+  ronda: ronda + 1,
+  posicion: Math.floor(posicion / 2),
+  lado: posicion % 2 === 0 ? 'equipo_a' : 'equipo_b'
+})
+
+// Arma el cuadro desde cero con las parejas organizadas (borra resultados previos).
+// El tamaño es la siguiente potencia de 2; las semillas que sobran son BYE y, por
+// el orden de siembra, nunca caen dos BYE en la misma llave. El sorteo es al azar.
+export const generarCuadro = async (torneoId) => {
+  await Partido.deleteMany({ torneo_id: torneoId })
+  const numeros = await Participante.distinct('equipo', { torneo_id: torneoId, equipo: { $ne: null } })
+  if (numeros.length < 2) return []
+
+  const tamano = 2 ** Math.ceil(Math.log2(numeros.length))
+  const totalRondas = Math.log2(tamano)
+  const sorteados = mezclar(numeros)
+  const semillas = ordenSemillas(tamano)
+
+  const partidos = new Map()
+  const clave = (ronda, posicion) => `${ronda}-${posicion}`
+  for (let ronda = 1; ronda <= totalRondas; ronda++) {
+    for (let posicion = 0; posicion < tamano / 2 ** ronda; posicion++) {
+      partidos.set(clave(ronda, posicion), {
+        torneo_id: torneoId, ronda, posicion, equipo_a: null, equipo_b: null, ganador: null
+      })
+    }
+  }
+
+  // Primera ronda; quien enfrenta un BYE gana directo y pasa a la siguiente
+  for (let posicion = 0; posicion < tamano / 2; posicion++) {
+    const partido = partidos.get(clave(1, posicion))
+    partido.equipo_a = sorteados[semillas[posicion * 2] - 1] ?? null
+    partido.equipo_b = sorteados[semillas[posicion * 2 + 1] - 1] ?? null
+    if (partido.equipo_a == null || partido.equipo_b == null) {
+      partido.ganador = partido.equipo_a ?? partido.equipo_b
+      const sig = llaveSiguiente(partido)
+      partidos.get(clave(sig.ronda, sig.posicion))[sig.lado] = partido.ganador
+    }
+  }
+
+  return Partido.insertMany([...partidos.values()])
+}
+
+// Cuadro listo para mostrar: solo números de pareja y nombres de los jugadores
+// (sin email, teléfono ni pagos). mi_equipo es la pareja de quien consulta.
+export const obtenerCuadro = async (torneoId, usuarioId) => {
+  let partidos = await Partido.find({ torneo_id: torneoId }).sort({ ronda: 1, posicion: 1 })
+  const { equipos } = await obtenerOrganizacion(torneoId)
+
+  // Torneos organizados antes de que existiera el cuadro
+  if (!partidos.length && equipos.length >= 2) {
+    partidos = await generarCuadro(torneoId)
+  }
+
+  const nombres = new Map(equipos.map(e => [e.equipo, e.integrantes.map(i => i.nombre)]))
+  const yo = usuarioId?.toString()
+  const mio = equipos.find(e => e.integrantes.some(i => i.usuario_id?.toString() === yo))
+
+  // En la primera ronda un hueco es un BYE; en las demás, una llave por definir
+  const casilla = (numero, ronda) => numero == null
+    ? (ronda === 1 ? { bye: true } : null)
+    : { equipo: numero, nombres: nombres.get(numero) ?? [] }
+
+  const totalRondas = partidos.reduce((max, p) => Math.max(max, p.ronda), 0)
+  const rondas = []
+  for (let ronda = 1; ronda <= totalRondas; ronda++) {
+    rondas.push({
+      ronda,
+      nombre: nombreRonda(ronda, totalRondas),
+      partidos: partidos.filter(p => p.ronda === ronda).map(p => ({
+        _id: p._id,
+        ronda: p.ronda,
+        posicion: p.posicion,
+        equipo_a: casilla(p.equipo_a, ronda),
+        equipo_b: casilla(p.equipo_b, ronda),
+        ganador: p.ganador
+      }))
+    })
+  }
+
+  const final = rondas.at(-1)?.partidos[0]
+  return {
+    rondas,
+    campeon: final?.ganador != null ? casilla(final.ganador, totalRondas) : null,
+    mi_equipo: mio?.equipo ?? null
   }
 }

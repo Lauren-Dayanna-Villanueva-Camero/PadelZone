@@ -148,3 +148,19 @@
   .tor-acciones { justify-content: flex-start; }
   .tor-detalle-head .tor-acciones { margin-left: 0; }
 }
+
+/* Cuadro de eliminación en la pestaña Organización */
+.tor-cuadro {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.tor-cuadro-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: #010231;
+  margin-bottom: 10px;
+}

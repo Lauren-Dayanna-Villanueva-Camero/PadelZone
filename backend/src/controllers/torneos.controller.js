@@ -2,7 +2,8 @@ import ExcelJS from 'exceljs'
 import Torneo from '../models/torneo.model.js'
 import Participante from '../models/participante.model.js'
 import User from '../models/user.model.js'
-import { torneoSchema, torneoUpdateSchema, inscripcionSchema } from '../schema/torneo.schema.js'
+import Partido from '../models/partido.model.js'
+import { torneoSchema, torneoUpdateSchema, inscripcionSchema, ganadorSchema } from '../schema/torneo.schema.js'
 import {
   finalizarTorneosVencidos,
   torneoTerminado,
@@ -13,7 +14,9 @@ import {
   cerrarInscripciones as cerrarInscripcionesTorneo,
   limpiarEquipos,
   avisoSinPareja,
-  obtenerOrganizacion
+  obtenerOrganizacion,
+  obtenerCuadro,
+  llaveSiguiente
 } from '../libs/torneos.js'
 import { isAdminRequest } from '../middlewares/auth.middleware.js'
 
@@ -602,6 +605,99 @@ export const exportarTorneo = async (req, res) => {
     return res.status(200).send(Buffer.from(buffer))
   } catch (error) {
     console.error('Error en exportarTorneo:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// GET /api/torneos/:id/cuadro — solo el admin y quienes participan en el torneo
+export const getCuadro = async (req, res) => {
+  try {
+    await finalizarTorneosVencidos()
+    const torneo = await Torneo.findById(req.params.id)
+    if (!torneo) {
+      return res.status(404).json({ message: 'Torneo no encontrado' })
+    }
+
+    const participa = isAdminRequest(req) ||
+      await Participante.exists(filtroParticipacion(torneo._id, req.user._id))
+    if (!participa) {
+      return res.status(403).json({ message: 'Solo los participantes del torneo pueden ver el cuadro' })
+    }
+
+    const base = { torneo_id: torneo._id, nombre: torneo.nombre, estado: torneo.estado }
+
+    // Mientras las inscripciones sigan abiertas no hay parejas ni cuadro
+    if (torneo.estado === 'activo') {
+      return res.status(200).json({
+        ...base,
+        publicado: false,
+        message: 'El cuadro se publicará al cerrar las inscripciones'
+      })
+    }
+
+    const cuadro = await obtenerCuadro(torneo._id, req.user._id)
+    return res.status(200).json({ ...base, publicado: true, ...cuadro })
+  } catch (error) {
+    console.error('Error en getCuadro:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// PUT /api/torneos/:id/partidos/:partidoId — solo admin: marca (o quita) el ganador
+// y lo pasa a la llave de la ronda siguiente
+export const setGanadorPartido = async (req, res) => {
+  try {
+    const parsed = ganadorSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: 'Datos inválidos',
+        errors: parsed.error.issues.map(e => e.message)
+      })
+    }
+    const { ganador } = parsed.data
+
+    const torneo = await Torneo.findById(req.params.id)
+    if (!torneo) {
+      return res.status(404).json({ message: 'Torneo no encontrado' })
+    }
+    if (!['en_curso', 'finalizado'].includes(torneo.estado)) {
+      return res.status(400).json({ message: 'Solo se registran resultados de torneos en curso o finalizados' })
+    }
+
+    const partido = await Partido.findOne({ _id: req.params.partidoId, torneo_id: torneo._id })
+    if (!partido) {
+      return res.status(404).json({ message: 'Partido no encontrado' })
+    }
+    if (partido.equipo_a == null || partido.equipo_b == null) {
+      return res.status(400).json({ message: 'Este partido aún no tiene definidas las dos parejas' })
+    }
+    if (ganador != null && ganador !== partido.equipo_a && ganador !== partido.equipo_b) {
+      return res.status(400).json({ message: 'El ganador debe ser una de las dos parejas del partido' })
+    }
+
+    // Si la pareja ya jugó la ronda siguiente, cambiar este resultado dejaría el cuadro incoherente
+    const sig = llaveSiguiente(partido)
+    const siguiente = await Partido.findOne({ torneo_id: torneo._id, ronda: sig.ronda, posicion: sig.posicion })
+    if (siguiente?.ganador != null && ganador !== partido.ganador) {
+      return res.status(409).json({
+        message: 'El partido siguiente ya tiene ganador; quita primero ese resultado'
+      })
+    }
+
+    partido.ganador = ganador
+    await partido.save()
+    if (siguiente) {
+      siguiente[sig.lado] = ganador
+      await siguiente.save()
+    }
+
+    const cuadro = await obtenerCuadro(torneo._id, req.user._id)
+    return res.status(200).json({
+      message: ganador == null ? 'Resultado eliminado' : 'Ganador registrado',
+      cuadro: { torneo_id: torneo._id, nombre: torneo.nombre, estado: torneo.estado, publicado: true, ...cuadro }
+    })
+  } catch (error) {
+    console.error('Error en setGanadorPartido:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
 }

@@ -9,6 +9,7 @@ import {
   getErrorMessage
 } from '../../services/api'
 import { getTournamentImage, formatDateLong, formatPrice, toDateKey, todayKey } from '../../utils/helpers'
+import Cuadro from '../../components/Cuadro/Cuadro'
 import './Tournaments.css'
 
 const categoryColors = {
@@ -110,6 +111,9 @@ function Tournaments() {
 
   const [selectedTournament, setSelectedTournament] = useState(null)
   const [activeTab, setActiveTab] = useState('active')
+  // Torneo abierto desde "Mis inscripciones" (id) y su subpestaña: 'equipo' | 'cuadro'
+  const [vistaTorneo, setVistaTorneo] = useState(null)
+  const [subTab, setSubTab] = useState('cuadro')
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelError, setCancelError] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
@@ -160,6 +164,17 @@ function Tournaments() {
   const myRegistrations = isAuthenticated ? registrations : []
   const registrationFor = (tournamentId) =>
     myRegistrations.find(r => r.torneo_id._id === tournamentId)
+  const regEnVista = vistaTorneo ? registrationFor(vistaTorneo) : null
+
+  const abrirCuadro = (reg) => {
+    setVistaTorneo(reg.torneo_id._id)
+    setSubTab('cuadro')
+  }
+
+  const cambiarTab = (tab) => {
+    setActiveTab(tab)
+    setVistaTorneo(null)
+  }
 
   const isFinished = (t) => estadoDe(t) === 'finalizado'
   // Se listan los torneos con inscripciones abiertas y los que se están jugando
@@ -265,14 +280,14 @@ function Tournaments() {
           <div className="tournaments-tabs">
             <button
               className={`tournaments-tab ${activeTab === 'active' ? 'active' : ''}`}
-              onClick={() => setActiveTab('active')}
+              onClick={() => cambiarTab('active')}
             >
               <i className="material-icons">emoji_events</i>
               Torneos Disponibles
             </button>
             <button
               className={`tournaments-tab ${activeTab === 'mine' ? 'active' : ''}`}
-              onClick={() => setActiveTab('mine')}
+              onClick={() => cambiarTab('mine')}
             >
               <i className="material-icons">how_to_reg</i>
               Mis Inscripciones
@@ -398,14 +413,63 @@ function Tournaments() {
           )
         )}
 
-        {activeTab === 'mine' && (
+        {activeTab === 'mine' && regEnVista && (
+          <div className="tournament-view">
+            <button className="tournament-view-back" onClick={() => setVistaTorneo(null)}>
+              <i className="material-icons">arrow_back</i>
+              Mis inscripciones
+            </button>
+
+            <div className="tournament-view-head">
+              <div>
+                <h4>{regEnVista.torneo_id.nombre}</h4>
+                <span className="tournament-view-dates">
+                  <i className="material-icons">calendar_today</i>
+                  {formatDateLong(regEnVista.torneo_id.fecha_inicio)} – {formatDateLong(regEnVista.torneo_id.fecha_fin)}
+                </span>
+              </div>
+              <EstadoBadge torneo={regEnVista.torneo_id} />
+            </div>
+
+            <div className="tournament-subtabs" role="tablist">
+              <button
+                role="tab"
+                aria-selected={subTab === 'equipo'}
+                className={`tournament-subtab ${subTab === 'equipo' ? 'active' : ''}`}
+                onClick={() => setSubTab('equipo')}
+              >
+                <i className="material-icons">groups</i>
+                Mi equipo
+              </button>
+              <button
+                role="tab"
+                aria-selected={subTab === 'cuadro'}
+                className={`tournament-subtab ${subTab === 'cuadro' ? 'active' : ''}`}
+                onClick={() => setSubTab('cuadro')}
+              >
+                <i className="material-icons">account_tree</i>
+                Cuadro
+              </button>
+            </div>
+
+            <div className="tournament-view-body">
+              {subTab === 'equipo' ? (
+                <TuEquipo reg={regEnVista} />
+              ) : (
+                <Cuadro torneoId={regEnVista.torneo_id._id} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'mine' && !regEnVista && (
           <div className="my-registrations">
             {myRegistrations.length === 0 ? (
               <div className="tournaments-empty">
                 <i className="material-icons">emoji_events</i>
                 <h5>No tienes inscripciones aún</h5>
                 <p>Explora los torneos disponibles y participa</p>
-                <button className="tournament-btn" onClick={() => setActiveTab('active')}>
+                <button className="tournament-btn" onClick={() => cambiarTab('active')}>
                   Ver Torneos
                 </button>
               </div>
@@ -453,6 +517,12 @@ function Tournaments() {
                                 ? 'Torneo finalizado'
                                 : reg.pago_confirmado ? 'Pago confirmado' : 'Pago pendiente'}
                           </span>
+                          {t.estado !== 'cancelado' && (
+                            <button className="my-reg-bracket-btn" onClick={() => abrirCuadro(reg)}>
+                              <i className="material-icons">account_tree</i>
+                              Ver cuadro
+                            </button>
+                          )}
                           {/* Cancelar solo mientras las inscripciones siguen abiertas */}
                           {estadoDe(t) === 'activo' && !reg.inscrito_por_pareja && (
                             <button

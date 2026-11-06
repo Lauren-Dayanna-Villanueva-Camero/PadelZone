@@ -1003,3 +1003,115 @@
   font-size: 0.78rem;
   color: #888;
 }
+
+/* Pie de "Mis inscripciones" con varios botones */
+.my-reg-footer { flex-wrap: wrap; gap: 8px; }
+
+.my-reg-bracket-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  background: #010231;
+  border: 1.5px solid #010231;
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.my-reg-bracket-btn i { font-size: 1rem; }
+.my-reg-bracket-btn:hover { background: #00897b; border-color: #00897b; }
+
+/* Vista de un torneo: Mi equipo / Cuadro */
+.tournament-view {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(1, 2, 49, 0.08);
+  padding: 20px;
+}
+
+.tournament-view-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #010231;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 10px;
+}
+
+.tournament-view-back:hover { color: #00897b; }
+
+.tournament-view-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.tournament-view-head h4 {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #010231;
+}
+
+.tournament-view-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.tournament-view-dates i { font-size: 1rem; }
+
+.tournament-subtabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 16px;
+}
+
+.tournament-subtab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tournament-subtab i { font-size: 1.1rem; }
+.tournament-subtab:hover { color: #010231; }
+.tournament-subtab.active { color: #010231; border-bottom-color: #00897b; }
+
+.tournament-view-body .tournament-team { margin: 0; }
+
+@media (max-width: 600px) {
+  .tournament-view { padding: 14px; border-radius: 12px; }
+  .tournament-view-head h4 { font-size: 1.15rem; }
+  .tournament-subtab { flex: 1; justify-content: center; padding: 10px 8px; }
+}
+
+/* Con la vista del torneo abierta se usa más ancho para que quepa el cuadro */
+@media (min-width: 1201px) {
+  .tournaments-body:has(.tournament-view) { width: min(94%, 1320px); }
+}

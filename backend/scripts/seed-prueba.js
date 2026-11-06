@@ -15,6 +15,7 @@ import Cancha from '../src/models/cancha.model.js'
 import Producto from '../src/models/producto.model.js'
 import Torneo from '../src/models/torneo.model.js'
 import Participante from '../src/models/participante.model.js'
+import Partido from '../src/models/partido.model.js'
 import Reserva from '../src/models/reserva.model.js'
 import Pedido from '../src/models/pedido.model.js'
 import PedidoItem from '../src/models/pedidoItem.model.js'
@@ -191,6 +192,7 @@ const reset = async () => {
   await Reserva.deleteMany({ $or: [{ usuario_id: { $in: ids } }, { cancha_id: { $in: canchas.map(c => c._id) } }] })
   await Participante.deleteMany({ $or: [{ usuario_id: { $in: ids } }, { torneo_id: { $in: torneos.map(t => t._id) } }] })
   await InscripcionClase.deleteMany({ usuario_id: { $in: ids } })
+  await Partido.deleteMany({ torneo_id: { $in: torneos.map(t => t._id) } })
   await Torneo.deleteMany({ _id: { $in: torneos.map(t => t._id) } })
   await Cancha.deleteMany({ _id: { $in: canchas.map(c => c._id) } })
   await Producto.deleteMany({ _id: { $in: productos.map(p => p._id) } })

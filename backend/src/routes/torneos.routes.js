@@ -11,7 +11,9 @@ import {
   updateParticipante,
   cerrarInscripciones,
   reorganizarTorneo,
-  exportarTorneo
+  exportarTorneo,
+  getCuadro,
+  setGanadorPartido
 } from '../controllers/torneos.controller.js'
 import { authRequired, adminRequired, optionalAuth } from '../middlewares/auth.middleware.js'
 import { validateId } from '../middlewares/validate.middleware.js'
@@ -33,9 +35,12 @@ router.delete('/:id', validateId(), authRequired, adminRequired, deleteTorneo)
 router.put('/:id/cerrar-inscripciones', validateId(), authRequired, adminRequired, cerrarInscripciones)
 router.put('/:id/reorganizar', validateId(), authRequired, adminRequired, reorganizarTorneo)
 router.get('/:id/exportar', validateId(), authRequired, adminRequired, exportarTorneo)
+router.put('/:id/partidos/:partidoId', validateId(), validateId('partidoId'), authRequired, adminRequired, setGanadorPartido)
 router.put('/:id/participantes/:participanteId', validateId(), validateId('participanteId'), authRequired, adminRequired, updateParticipante)
 
 // Rutas usuario autenticado
+// El cuadro exige sesión: el controller comprueba que sea admin o participante
+router.get('/:id/cuadro', validateId(), authRequired, getCuadro)
 router.post('/:id/inscribir', validateId(), authRequired, inscribirParticipante)
 router.delete('/:id/cancelar-inscripcion', validateId(), authRequired, cancelarInscripcion)
 

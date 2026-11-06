@@ -30,3 +30,10 @@ export const inscripcionSchema = z.object({
     z.string().trim().toLowerCase().email('El email de la pareja no es válido')
   ]).nullable().optional()
 })
+
+// Ganador de un partido del cuadro: número de pareja, o null para quitarlo
+export const ganadorSchema = z.object({
+  ganador: z.number({ error: 'El ganador debe ser un número de pareja' })
+    .int('El ganador debe ser un número de pareja').min(1, 'El ganador debe ser un número de pareja')
+    .nullable()
+})

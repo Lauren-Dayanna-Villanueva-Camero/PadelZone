@@ -81,6 +81,10 @@ export const cancelarInscripcionApi = (id) => api.delete(`/torneos/${id}/cancela
 export const cerrarInscripcionesApi = (id) => api.put(`/torneos/${id}/cerrar-inscripciones`)
 export const reorganizarTorneoApi = (id) => api.put(`/torneos/${id}/reorganizar`)
 export const exportarTorneoApi = (id) => api.get(`/torneos/${id}/exportar`, { responseType: 'blob' })
+// Cuadro de eliminación: solo admin y participantes. `ganador` es el número de pareja o null para quitarlo
+export const getCuadroTorneoApi = (id) => api.get(`/torneos/${id}/cuadro`)
+export const setGanadorPartidoApi = (torneoId, partidoId, ganador) =>
+  api.put(`/torneos/${torneoId}/partidos/${partidoId}`, { ganador })
 
 // ─── CLASES ─────────────────────────────────────────
 export const getMisClasesApi = () => api.get('/clases/mis-inscripciones')

@@ -14,6 +14,7 @@ import {
 import { formatPrice, formatDateLong, toDateKey } from '../../../utils/helpers'
 import { useAdmin } from '../../../hooks/useAdmin'
 import { useAdminResource } from '../useAdminResource'
+import Cuadro from '../../../components/Cuadro/Cuadro'
 import {
   PageHeader, ErrorBanner, Loading, EmptyState, Modal, ConfirmDialog, Field
 } from '../components/AdminUI'
@@ -64,7 +65,7 @@ const acciones = {
     title: 'Cerrar inscripciones',
     confirmText: 'Cerrar y emparejar',
     danger: false,
-    message: (t) => `"${t.nombre}" pasará a en curso y no admitirá más inscripciones. Se respetarán las parejas declaradas y el resto se emparejará al azar.`,
+    message: (t) => `"${t.nombre}" pasará a en curso y no admitirá más inscripciones. Se respetarán las parejas declaradas, el resto se emparejará al azar y se sorteará el cuadro de eliminación.`,
     run: (t) => cerrarInscripcionesApi(t._id),
     ok: (t) => `Inscripciones de "${t.nombre}" cerradas y parejas organizadas`
   },
@@ -72,7 +73,7 @@ const acciones = {
     title: 'Reorganizar parejas',
     confirmText: 'Reorganizar',
     danger: false,
-    message: (t) => `Se volverá a sortear a los jugadores sin pareja declarada de "${t.nombre}". Las parejas actuales formadas al azar se perderán.`,
+    message: (t) => `Se volverá a sortear a los jugadores sin pareja declarada de "${t.nombre}". Las parejas actuales formadas al azar se perderán y el cuadro se volverá a sortear (se borran los resultados registrados).`,
     run: (t) => reorganizarTorneoApi(t._id),
     ok: (t) => `Parejas de "${t.nombre}" reorganizadas`
   },
@@ -129,6 +130,7 @@ function Torneos() {
   const [detalleLoading, setDetalleLoading] = useState(false)
   const [detalleError, setDetalleError] = useState('')
   const [tab, setTab] = useState('organizacion')
+  const [cuadroVersion, setCuadroVersion] = useState(0) // fuerza recargar el cuadro tras cerrar o reorganizar
 
   const [aviso, setAviso] = useState(null) // { tone: 'ok' | 'warn' | 'error', text }
   const [exportando, setExportando] = useState(null) // id del torneo que se está exportando
@@ -212,7 +214,10 @@ function Torneos() {
       setConfirm(null)
       reload()
       loadStats()
-      if (detalle?._id === torneo._id) loadDetalle(torneo._id)
+      if (detalle?._id === torneo._id) {
+        loadDetalle(torneo._id)
+        setCuadroVersion(v => v + 1)
+      }
     } catch (err) {
       setConfirmError(getErrorMessage(err, 'No se pudo completar la acción'))
     } finally {
@@ -467,6 +472,14 @@ function Torneos() {
               <EmptyState icon="groups" text="Este torneo no tiene parejas organizadas." />
             ) : (
               <>
+                <div className="tor-cuadro">
+                  <div className="tor-cuadro-head">
+                    <i className="material-icons">account_tree</i>
+                    Cuadro de eliminación
+                  </div>
+                  <Cuadro key={`${detalle._id}-${cuadroVersion}`} torneoId={detalle._id} admin />
+                </div>
+
                 <div className="tor-equipos">
                   {org.equipos.map(e => (
                     <div className="tor-equipo" key={e.equipo}>

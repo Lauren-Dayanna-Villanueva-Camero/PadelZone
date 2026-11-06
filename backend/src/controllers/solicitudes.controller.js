@@ -140,7 +140,7 @@ export const getSolicitudes = async (req, res) => {
     const respuesta = await Promise.all(solicitudes.map(async (s) => ({
       ...s.toObject(),
       conflictos: s.estado === 'pendiente'
-        ? await conflictosBloque({ ...s.toObject(), canchas: s.canchas.map(c => c._id) })
+        ? await conflictosBloque({ ...s.toObject(), canchas: s.canchas.filter(Boolean).map(c => c._id) }) // una cancha borrada llega como null
         : []
     })))
 

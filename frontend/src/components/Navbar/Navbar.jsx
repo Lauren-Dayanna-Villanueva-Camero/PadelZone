@@ -70,7 +70,7 @@ function Navbar() {
                   <i className="material-icons">storefront</i>
                   Tiendas
                 </Link>
-                <Link to="/torneos" className="nav-dropdown-item" onClick={() => setServicesOpen(false)}>
+                <Link to="/torneos" className="nav-dropdown-item nav-dropdown-parent" onClick={() => setServicesOpen(false)}>
                   <i className="material-icons">emoji_events</i>
                   Torneos
                 </Link>
@@ -81,7 +81,7 @@ function Navbar() {
                     Mis partidos
                   </Link>
                 )}
-                <Link to="/torneos?seccion=organiza" className="nav-dropdown-item nav-dropdown-subitem" onClick={() => setServicesOpen(false)}>
+                <Link to="/torneos?seccion=organiza" className="nav-dropdown-item nav-dropdown-subitem is-last" onClick={() => setServicesOpen(false)}>
                   <i className="material-icons">business</i>
                   Organiza tu torneo
                 </Link>

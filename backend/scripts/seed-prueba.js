@@ -1,8 +1,14 @@
-// Datos de prueba: usuarios usuario1..usuarioN (contraseña 123456), canchas,
-// productos, torneos en todos los estados, reservas, pedidos, clases y carrusel.
+// Datos de prueba para probar todas las funcionalidades: usuarios usuario1..usuarioN
+// (contraseña 123456), canchas, productos, carrusel, reservas, pedidos, clases y
+// torneos en todos sus estados (con cuadro, resultados, horarios y canchas
+// apartadas), además de solicitudes de torneo de empresas en todos sus estados.
+// El detalle de cada caso está en la sección "Datos de prueba" del README.
 //
 //   npm run seed           → crea los datos (si ya existen, no hace nada)
 //   npm run seed -- --reset → borra los datos de prueba creados por este script
+//
+// Si la base no tiene ningún admin activo se crea admin.prueba@padelzone.com
+// (contraseña 123456), que también se borra con --reset.
 import 'dotenv/config'
 import path from 'path'
 import fs from 'fs'
@@ -23,7 +29,8 @@ import PedidoItem from '../src/models/pedidoItem.model.js'
 import InscripcionClase from '../src/models/inscripcionClase.model.js'
 import Carrusel from '../src/models/carrusel.model.js'
 import { checkCloudinary, cloudinaryEnabled, uploadBuffer, destroyImage } from '../src/libs/cloudinary.js'
-import { organizarEquipos } from '../src/libs/torneos.js'
+import { organizarEquipos, llaveSiguiente } from '../src/libs/torneos.js'
+import { bloqueosDeTorneos } from '../src/libs/horarios.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const IMG_SRC = path.resolve(__dirname, '../../frontend/src/img')
@@ -33,6 +40,7 @@ const TOTAL_USUARIOS = 40
 const PASSWORD = '123456'
 const emailDe = (n) => `usuario${n}@padelzone.com`
 const SEED_EMAIL = /^usuario\d+@padelzone\.com$/
+const ADMIN_PRUEBA = 'admin.prueba@padelzone.com'
 
 // PRNG con semilla: cada ejecución genera los mismos datos
 let semilla = 20261029
@@ -102,38 +110,122 @@ const CLASES = [
     grupos: [['10 - 14 años', 'Valentina Salazar', '$160.000 / mes'], ['15 - 21 años', 'Sofía Restrepo', '$180.000 / mes'], ['22 años en adelante', 'Carlos Mendoza', '$200.000 / mes']] }
 ]
 
-// Torneos: participantes por número de usuario. apertura/cierre: días (desde hoy)
-// del periodo de inscripciones; el Navideño aún no abre (sale como "Próximamente").
-// parejas: [a, b] inscritos ambos y declarados mutuamente
-// declaradas: [a, b] solo a se inscribe y declara a b
+// Torneos: participantes por número de usuario. apertura/cierre/inicio/fin: días
+// desde hoy. parejas: [a, b] inscritos ambos y declarados mutuamente;
+// declaradas: [a, b] solo a se inscribe y declara a b (b no tiene inscripción propia).
+// franja/duracion: horario diario de los partidos; canchas: canchas apartadas
+// (bloquean las reservas en esos días y franja).
+// organizar: arma parejas, cuadro y horarios; resultados: rondas ya jugadas
+// ('todas' = torneo terminado con campeón).
 const TORNEOS = [
   {
-    nombre: 'Torneo Amateur de Noviembre', apertura: -5, cierre: 14, tipo_torneo: 'Amateur', inicio: 16, fin: 18, cupo_maximo_parejas: 8, precio_inscripcion: 40000, estado: 'activo',
+    // Inscripciones abiertas con canchas apartadas: 6 de 8 parejas; al cerrar
+    // inscripciones queda 1 suelto sin pareja. Reservar Cancha 2 o 4 de 8:00 a
+    // 14:00 en esos días da error.
+    nombre: 'Torneo Amateur de Noviembre', apertura: -5, cierre: 14, inicio: 16, fin: 18,
+    tipo_torneo: 'Amateur', cupo_maximo_parejas: 8, precio_inscripcion: 40000, estado: 'activo',
+    franja: ['08:00', '14:00'], canchas: ['Cancha 2', 'Cancha 4'],
     parejas: [[6, 7], [8, 9], [10, 11]], declaradas: [[12, 39]], sueltos: [13, 14, 15]
-    // 6 de 8 parejas; al cerrar inscripciones queda 1 suelto sin pareja
   },
   {
-    nombre: 'Copa Comunidad PadelZone', apertura: -10, cierre: 7, tipo_torneo: 'Comunidad', inicio: 9, fin: 10, cupo_maximo_parejas: 4, precio_inscripcion: 20000, estado: 'activo',
+    // 3 de 4 parejas: una inscripción más con pareja_email la llena y se cierra sola
+    nombre: 'Copa Comunidad PadelZone', apertura: -10, cierre: 7, inicio: 9, fin: 10,
+    tipo_torneo: 'Comunidad', cupo_maximo_parejas: 4, precio_inscripcion: 20000, estado: 'activo',
+    franja: ['09:00', '18:00'],
     parejas: [], declaradas: [], sueltos: [16, 17, 18, 19, 20, 21]
-    // 3 de 4 parejas: una pareja más (con pareja_email) la llena y se cierra sola
   },
   {
-    nombre: 'Open Profesional PadelZone 2026', apertura: -20, cierre: -3, tipo_torneo: 'Profesional', inicio: -2, fin: 4, cupo_maximo_parejas: 8, precio_inscripcion: 120000, estado: 'en_curso',
-    parejas: [[1, 2], [23, 24], [25, 26], [27, 28]], declaradas: [], sueltos: [29, 30, 31, 32, 33, 34, 35, 36], organizar: true
+    // En curso: cuartos jugados (con ganadores), semifinales programadas y la
+    // final sin horario (por definir) para probar el ajuste manual
+    nombre: 'Open Profesional PadelZone 2026', apertura: -20, cierre: -3, inicio: -2, fin: 4,
+    tipo_torneo: 'Profesional', cupo_maximo_parejas: 8, precio_inscripcion: 120000, estado: 'en_curso',
+    franja: ['16:00', '22:00'], canchas: ['Cancha 2', 'Cancha 4'],
+    parejas: [[1, 2], [23, 24], [25, 26], [27, 28]], declaradas: [], sueltos: [29, 30, 31, 32, 33, 34, 35, 36],
+    organizar: true, resultados: 1, finalSinHorario: true
   },
   {
-    nombre: 'Liga de Verano 2026', apertura: -110, cierre: -91, tipo_torneo: 'Amateur', inicio: -89, fin: -87, cupo_maximo_parejas: 6, precio_inscripcion: 35000, estado: 'finalizado',
-    parejas: [[3, 4], [5, 6]], declaradas: [], sueltos: [7, 8, 9, 10, 11, 12, 13, 14], organizar: true
+    // Cierre de inscripciones vencido pero aún activo: la primera consulta a la
+    // API lo cierra sola y arma parejas, cuadro y horarios (queda 1 sin pareja)
+    nombre: 'Torneo Express Cierre Automático', apertura: -12, cierre: -1, inicio: 1, fin: 2,
+    tipo_torneo: 'Amateur', cupo_maximo_parejas: 8, precio_inscripcion: 25000, estado: 'activo',
+    franja: ['18:00', '22:00'],
+    parejas: [[33, 34]], declaradas: [[35, 38]], sueltos: [1, 2, 5, 6, 9]
   },
   {
-    nombre: 'Torneo Relámpago Halloween', apertura: -10, cierre: 1, tipo_torneo: 'Comunidad', inicio: 2, fin: 2, cupo_maximo_parejas: 8, precio_inscripcion: 15000, estado: 'cancelado',
+    // Finalizado con campeón: 6 parejas en un cuadro de 8 (2 BYE)
+    nombre: 'Liga de Verano 2026', apertura: -110, cierre: -91, inicio: -89, fin: -87,
+    tipo_torneo: 'Amateur', cupo_maximo_parejas: 6, precio_inscripcion: 35000, estado: 'finalizado',
+    franja: ['08:00', '20:00'],
+    parejas: [[3, 4], [5, 6]], declaradas: [], sueltos: [7, 8, 9, 10, 11, 12, 13, 14],
+    organizar: true, resultados: 'todas'
+  },
+  {
+    nombre: 'Torneo Relámpago Halloween', apertura: -10, cierre: 1, inicio: 2, fin: 2,
+    tipo_torneo: 'Comunidad', cupo_maximo_parejas: 8, precio_inscripcion: 15000, estado: 'cancelado',
     parejas: [], declaradas: [], sueltos: [37, 38, 3, 4]
   },
   {
-    nombre: 'Gran Torneo Navideño', apertura: 5, cierre: 40, tipo_torneo: 'Profesional', inicio: 44, fin: 46, cupo_maximo_parejas: 16, precio_inscripcion: 80000, estado: 'activo',
+    // Las inscripciones aún no abren: sale como "Próximamente"
+    nombre: 'Gran Torneo Navideño', apertura: 5, cierre: 40, inicio: 44, fin: 46,
+    tipo_torneo: 'Profesional', cupo_maximo_parejas: 16, precio_inscripcion: 80000, estado: 'activo',
+    franja: ['09:00', '21:00'], duracion: 60,
     parejas: [], declaradas: [], sueltos: []
   }
 ]
+
+// Solicitudes de torneo de empresas (usuario = número del solicitante).
+// aprobada: se crea su torneo como lo haría el admin; con convenio queda vigente y
+// el solicitante ve el descuento al cotizar otro torneo en "Organiza tu torneo".
+// conReserva: antes se crea una reserva que se cruza, para ver el aviso de cruce.
+const SOLICITUDES = [
+  {
+    usuario: 5, estado: 'pendiente', modalidad: 'bloque',
+    empresa: { nombre: 'Huila Tech S.A.S.', nit: '901234567-8', contacto: 'usuario5 Prueba', telefono: '3101234567' },
+    nombre_torneo: 'Copa Empresarial Huila Tech', tipo_torneo: 'Comunidad',
+    descripcion: 'Torneo de integración para los empleados de la empresa.',
+    inicio: 25, fin: 26, franja: ['08:00', '14:00'], canchas: ['Cancha 4'],
+    cupo_maximo_parejas: 8, precio_inscripcion: 0, apertura: 1, cierre: 20
+  },
+  {
+    // Pendiente con una reserva que se cruza: el admin no puede aprobarla
+    usuario: 11, estado: 'pendiente', modalidad: 'bloque',
+    empresa: { nombre: 'Colegio Santa Librada', nit: '', contacto: 'usuario11 Prueba', telefono: '3157654321' },
+    nombre_torneo: 'Interclases Santa Librada', tipo_torneo: 'Amateur',
+    descripcion: 'Torneo entre cursos de bachillerato.',
+    inicio: 22, fin: 23, franja: ['09:00', '15:00'], canchas: ['Cancha 2'],
+    cupo_maximo_parejas: 6, precio_inscripcion: 10000, apertura: 2, cierre: 18,
+    conReserva: { usuario: 3, dia: 22, hora_inicio: '10:00', hora_fin: '12:00' }
+  },
+  {
+    // Convenio de 6 meses aprobado y vigente (15 % de descuento) con su torneo
+    usuario: 8, estado: 'aprobada', modalidad: 'convenio', convenio_meses: 6,
+    empresa: { nombre: 'Café Huila Exportaciones', nit: '900765432-1', contacto: 'usuario8 Prueba', telefono: '3209876543' },
+    nombre_torneo: 'Copa Empresarial Café Huila', tipo_torneo: 'Comunidad',
+    descripcion: 'Torneo anual de la empresa con sus clientes.',
+    inicio: 12, fin: 13, franja: ['08:00', '13:00'], canchas: ['Cancha 5'],
+    cupo_maximo_parejas: 4, precio_inscripcion: 0, apertura: -3, cierre: 10,
+    respuesta: 'Aprobado. Las canchas quedan apartadas para su torneo.',
+    participantes: { parejas: [[22, 23]], sueltos: [24, 25] }
+  },
+  {
+    usuario: 9, estado: 'rechazada', modalidad: 'bloque',
+    empresa: { nombre: 'Distribuidora El Sol', nit: '800111222-3', contacto: 'usuario9 Prueba', telefono: '3001112233' },
+    nombre_torneo: 'Torneo El Sol', tipo_torneo: 'Amateur',
+    inicio: 30, fin: 30, franja: ['07:00', '10:00'], canchas: ['Cancha 4'],
+    cupo_maximo_parejas: 8, precio_inscripcion: 0, apertura: 3, cierre: 25,
+    respuesta: 'En 3 horas de un solo día no caben los partidos de 8 parejas. Envíe otra solicitud con más días o canchas.'
+  },
+  {
+    usuario: 10, estado: 'cancelada', modalidad: 'convenio', convenio_meses: 3,
+    empresa: { nombre: 'Gimnasio Fitness Neiva', nit: '', contacto: 'usuario10 Prueba', telefono: '3124445566' },
+    nombre_torneo: 'Copa Fitness', tipo_torneo: 'Comunidad',
+    inicio: 35, fin: 36, franja: ['14:00', '20:00'], canchas: ['Cancha 2', 'Cancha 5'],
+    cupo_maximo_parejas: 8, precio_inscripcion: 20000, apertura: 4, cierre: 30
+  }
+]
+
+// Descuento (%) por meses de convenio, igual que en libs/solicitudes.js
+const DESCUENTO_CONVENIO = { 3: 10, 6: 15, 12: 20 }
 
 const CIUDADES = [
   ['Neiva', 'Calle 8 # 5-32'], ['Neiva', 'Carrera 16 # 21-10'], ['Pitalito', 'Calle 5 # 3-40'],
@@ -177,13 +269,69 @@ const subirImagen = async (dir, archivo, tipo, adminId) => {
 const fijarFecha = (Model, id, campo, fecha) =>
   Model.collection.updateOne({ _id: id }, { $set: { [campo]: fecha } })
 
+const aMinutos = (hora) => {
+  const [h, m] = hora.split(':').map(Number)
+  return h * 60 + m
+}
+
+// Registra resultados al azar ronda por ronda (como lo haría el admin en el
+// cuadro): el ganador pasa a la llave siguiente. Los BYE ya vienen resueltos.
+const jugarRondas = async (torneoId, hasta) => {
+  const partidos = await Partido.find({ torneo_id: torneoId })
+  const total = Math.max(0, ...partidos.map(p => p.ronda))
+  const limite = hasta === 'todas' ? total : Math.min(hasta, total)
+  const llave = new Map(partidos.map(p => [`${p.ronda}-${p.posicion}`, p]))
+  for (let ronda = 1; ronda <= limite; ronda++) {
+    const deLaRonda = partidos.filter(p => p.ronda === ronda).sort((a, b) => a.posicion - b.posicion)
+    for (const p of deLaRonda) {
+      if (p.equipo_a == null || p.equipo_b == null || p.ganador != null) continue
+      p.ganador = rand() < 0.5 ? p.equipo_a : p.equipo_b
+      await p.save()
+      const sig = llaveSiguiente(p)
+      const siguiente = llave.get(`${sig.ronda}-${sig.posicion}`)
+      if (siguiente) {
+        siguiente[sig.lado] = p.ganador
+        await siguiente.save()
+      }
+    }
+  }
+}
+
+// Inscribe participantes en un torneo: parejas mutuas, declaradas y sueltos
+const inscribir = async (torneo, { parejas = [], declaradas = [], sueltos = [] }, u, pagado) => {
+  const filas = [
+    ...parejas.flatMap(([a, b]) => [[a, b], [b, a]]),
+    ...declaradas,
+    ...sueltos.map(n => [n, null])
+  ]
+  for (const [i, [n, pareja]] of filas.entries()) {
+    const p = await Participante.create({
+      torneo_id: torneo._id,
+      usuario_id: u(n)._id,
+      pareja_usuario_id: pareja ? u(pareja)._id : undefined,
+      pago_confirmado: pagado || rand() < 0.4
+    })
+    // Orden de inscripción escalonado (importa para resolver parejas)
+    await fijarFecha(Participante, p._id, 'fecha_inscripcion', new Date(haceDias(20).getTime() + i * 3600000))
+  }
+  return filas.length
+}
+
 // ─── Reset ──────────────────────────────────────────
 
 const reset = async () => {
   const usuarios = await User.find({ email: SEED_EMAIL }).select('_id')
   const ids = usuarios.map(u => u._id)
 
-  const torneos = await Torneo.find({ nombre: { $in: TORNEOS.map(t => t.nombre) } }).select('_id')
+  // Torneos del script y los creados al aprobar solicitudes de los usuarios de prueba
+  const solicitudes = await SolicitudTorneo.find({ solicitante_id: { $in: ids } }).select('torneo_id')
+  const torneos = await Torneo.find({
+    $or: [
+      { nombre: { $in: TORNEOS.map(t => t.nombre) } },
+      { _id: { $in: solicitudes.map(s => s.torneo_id).filter(Boolean) } },
+      { solicitud_id: { $in: solicitudes.map(s => s._id) } }
+    ]
+  }).select('_id')
   const canchas = await Cancha.find({ nombre: { $in: CANCHAS.map(c => c.nombre) } })
   const productos = await Producto.find({ nombre: { $in: PRODUCTOS.map(p => p.nombre) } })
   const slides = await Carrusel.find({ titulo: { $in: SLIDES.map(s => s.titulo) } })
@@ -208,6 +356,8 @@ const reset = async () => {
   }
   await Media.deleteMany({ _id: { $in: mediaIds } })
   await User.deleteMany({ _id: { $in: ids } })
+  const adminPrueba = await User.deleteOne({ email: ADMIN_PRUEBA })
+  if (adminPrueba.deletedCount) console.log(`Borrado el admin de prueba ${ADMIN_PRUEBA}`)
 
   console.log(`Borrados: ${ids.length} usuarios, ${canchas.length} canchas, ${productos.length} productos, ` +
     `${torneos.length} torneos, ${slides.length} slides, ${medias.length} imágenes y sus reservas/pedidos/inscripciones`)
@@ -221,8 +371,20 @@ const seed = async () => {
     return
   }
 
-  const admin = await User.findOne({ rol: 'admin', activo: true })
-  if (!admin) throw new Error('No hay ningún usuario admin activo para figurar como creador')
+  // Se usa el admin existente; si no hay ninguno se crea uno de prueba
+  let admin = await User.findOne({ rol: 'admin', activo: true })
+  if (!admin) {
+    admin = await User.create({
+      nombre: 'Admin',
+      apellido: 'Prueba',
+      email: ADMIN_PRUEBA,
+      password_hash: await bcrypt.hash(PASSWORD, 10),
+      telefono: '3000000000',
+      rol: 'admin',
+      activo: true
+    })
+    console.log(`No había ningún admin: se creó ${ADMIN_PRUEBA} (contraseña ${PASSWORD})`)
+  }
   console.log(`Admin creador: ${admin.email}`)
 
   const resumen = {}
@@ -269,6 +431,9 @@ const seed = async () => {
     resumen.slides = (resumen.slides || 0) + 1
   }
 
+  const canchaPorNombre = new Map((await Cancha.find()).map(c => [c.nombre, c]))
+  const idsCanchas = (nombres = []) => nombres.map(n => canchaPorNombre.get(n)?._id).filter(Boolean)
+
   // Torneos y participantes
   resumen.torneos = 0
   resumen.participantes = 0
@@ -283,56 +448,123 @@ const seed = async () => {
       precio_inscripcion: t.precio_inscripcion,
       estado: t.estado,
       inscripcion_apertura: fechaUTC(diaKey(t.apertura)),
-      inscripcion_cierre: fechaUTC(diaKey(t.cierre))
+      inscripcion_cierre: fechaUTC(diaKey(t.cierre)),
+      ...(t.franja && { hora_inicio: t.franja[0], hora_fin: t.franja[1] }),
+      duracion_partido_min: t.duracion ?? 90,
+      canchas: idsCanchas(t.canchas)
     })
     resumen.torneos++
 
-    const filas = [
-      ...t.parejas.flatMap(([a, b]) => [[a, b], [b, a]]),
-      ...t.declaradas,
-      ...t.sueltos.map(n => [n, null])
-    ]
     const pagado = t.estado === 'en_curso' || t.estado === 'finalizado'
-    for (const [i, [n, pareja]] of filas.entries()) {
-      const p = await Participante.create({
-        torneo_id: torneo._id,
-        usuario_id: u(n)._id,
-        pareja_usuario_id: pareja ? u(pareja)._id : undefined,
-        pago_confirmado: pagado || rand() < 0.4
-      })
-      // Orden de inscripción escalonado (importa para resolver parejas)
-      await fijarFecha(Participante, p._id, 'fecha_inscripcion', new Date(haceDias(20).getTime() + i * 3600000))
-      resumen.participantes++
+    resumen.participantes += await inscribir(torneo, t, u, pagado)
+
+    if (t.organizar) {
+      // Parejas, cuadro y horarios automáticos; luego los resultados ya jugados
+      await organizarEquipos(torneo._id)
+      if (t.resultados) await jugarRondas(torneo._id, t.resultados)
+      if (t.finalSinHorario) {
+        const final = await Partido.findOne({ torneo_id: torneo._id }).sort({ ronda: -1 })
+        await Partido.updateOne({ _id: final._id }, { fecha: null, hora_inicio: null, hora_fin: null, cancha_id: null })
+      }
     }
-    if (t.organizar) await organizarEquipos(torneo._id)
   }
 
-  // Solicitud de torneo de una empresa, pendiente de aprobar en el panel de admin
-  const cancha4 = await Cancha.findOne({ nombre: 'Cancha 4' })
-  if (cancha4) {
-    await SolicitudTorneo.create({
-      solicitante_id: u(5)._id,
-      empresa: { nombre: 'Huila Tech S.A.S.', nit: '901234567-8', contacto: 'usuario5 Prueba', telefono: '3101234567', email: emailDe(5) },
-      nombre_torneo: 'Copa Empresarial Huila Tech',
-      tipo_torneo: 'Comunidad',
-      descripcion: 'Torneo de integración para los empleados de la empresa.',
-      modalidad: 'bloque',
-      fecha_inicio: fechaUTC(diaKey(25)),
-      fecha_fin: fechaUTC(diaKey(26)),
-      hora_inicio: '08:00',
-      hora_fin: '14:00',
+  // Solicitudes de torneo de empresas
+  resumen.solicitudes = 0
+  for (const s of SOLICITUDES) {
+    const canchasSol = s.canchas.map(n => canchaPorNombre.get(n)).filter(Boolean)
+    if (!canchasSol.length) continue
+
+    if (s.conReserva) {
+      const r = s.conReserva
+      const cancha = canchasSol[0]
+      const horas = (aMinutos(r.hora_fin) - aMinutos(r.hora_inicio)) / 60
+      await Reserva.create({
+        usuario_id: u(r.usuario)._id,
+        cancha_id: cancha._id,
+        fecha: fechaUTC(diaKey(r.dia)),
+        hora_inicio: r.hora_inicio,
+        hora_fin: r.hora_fin,
+        precio: cancha.precio_por_hora * horas,
+        estado: 'confirmada'
+      })
+    }
+
+    // Misma cotización que libs/solicitudes.js
+    const dias = s.fin - s.inicio + 1
+    const horasPorDia = (aMinutos(s.franja[1]) - aMinutos(s.franja[0])) / 60
+    const valorHora = canchasSol.reduce((suma, c) => suma + c.precio_por_hora, 0)
+    const subtotal = Math.round(valorHora * horasPorDia * dias)
+    const descuentoPct = s.modalidad === 'convenio' ? DESCUENTO_CONVENIO[s.convenio_meses] ?? 0 : 0
+    const descuento = Math.round(subtotal * descuentoPct / 100)
+
+    const solicitud = await SolicitudTorneo.create({
+      solicitante_id: u(s.usuario)._id,
+      empresa: { ...s.empresa, email: emailDe(s.usuario) },
+      nombre_torneo: s.nombre_torneo,
+      tipo_torneo: s.tipo_torneo,
+      descripcion: s.descripcion ?? '',
+      modalidad: s.modalidad,
+      convenio_meses: s.convenio_meses ?? null,
+      fecha_inicio: fechaUTC(diaKey(s.inicio)),
+      fecha_fin: fechaUTC(diaKey(s.fin)),
+      hora_inicio: s.franja[0],
+      hora_fin: s.franja[1],
       duracion_partido_min: 90,
-      canchas: [cancha4._id],
-      cupo_maximo_parejas: 8,
-      precio_inscripcion: 0,
-      inscripcion_apertura: fechaUTC(diaKey(1)),
-      inscripcion_cierre: fechaUTC(diaKey(20)),
-      costo: { dias: 2, horas_por_dia: 6, horas_cancha: 12, valor_hora: cancha4.precio_por_hora, subtotal: cancha4.precio_por_hora * 12, descuento_pct: 0, descuento: 0, total: cancha4.precio_por_hora * 12 }
+      canchas: canchasSol.map(c => c._id),
+      cupo_maximo_parejas: s.cupo_maximo_parejas,
+      precio_inscripcion: s.precio_inscripcion,
+      inscripcion_apertura: fechaUTC(diaKey(s.apertura)),
+      inscripcion_cierre: fechaUTC(diaKey(s.cierre)),
+      costo: {
+        dias,
+        horas_por_dia: horasPorDia,
+        horas_cancha: horasPorDia * dias * canchasSol.length,
+        valor_hora: valorHora,
+        subtotal,
+        descuento_pct: descuentoPct,
+        descuento,
+        total: subtotal - descuento
+      },
+      estado: s.estado,
+      respuesta_admin: s.respuesta ?? ''
     })
-    resumen.solicitudes = 1
+    await fijarFecha(SolicitudTorneo, solicitud._id, 'createdAt', haceDias(entre(1, 6)))
+    resumen.solicitudes++
+
+    // Aprobada: se crea el torneo con las canchas apartadas, igual que aprobarSolicitud
+    if (s.estado === 'aprobada') {
+      const torneo = await Torneo.create({
+        nombre: s.nombre_torneo,
+        tipo_torneo: s.tipo_torneo,
+        fecha_inicio: solicitud.fecha_inicio,
+        fecha_fin: solicitud.fecha_fin,
+        cupo_maximo_parejas: s.cupo_maximo_parejas,
+        precio_inscripcion: s.precio_inscripcion,
+        estado: 'activo',
+        inscripcion_apertura: solicitud.inscripcion_apertura,
+        inscripcion_cierre: solicitud.inscripcion_cierre,
+        hora_inicio: s.franja[0],
+        hora_fin: s.franja[1],
+        duracion_partido_min: 90,
+        canchas: solicitud.canchas,
+        organizador: s.empresa.nombre,
+        solicitud_id: solicitud._id
+      })
+      // El convenio cuenta desde la aprobación (hoy)
+      const vigenteHasta = fechaUTC(diaKey(0))
+      if (s.convenio_meses) vigenteHasta.setUTCMonth(vigenteHasta.getUTCMonth() + s.convenio_meses)
+      await SolicitudTorneo.updateOne({ _id: solicitud._id }, {
+        torneo_id: torneo._id,
+        convenio_vigente_hasta: s.convenio_meses ? vigenteHasta : null
+      })
+      resumen.torneos++
+      if (s.participantes) resumen.participantes += await inscribir(torneo, s.participantes, u, false)
+    }
   }
 
-  // Reservas: pasadas, futuras y algunas canceladas, sin solapes
+  // Reservas: pasadas, futuras y algunas canceladas, sin solapes ni cruces con
+  // las canchas apartadas por los torneos
   const canchas = await Cancha.find({ activa: true })
   const ocupadas = await Reserva.find({ estado: { $ne: 'cancelada' } }).select('cancha_id fecha hora_inicio hora_fin')
   const choca = (canchaId, fecha, ini, fin) => ocupadas.some(r =>
@@ -351,6 +583,8 @@ const seed = async () => {
     const ini = `${pad(hIni)}:00`
     const fin = `${pad(hFin)}:00`
     if (choca(cancha._id, fecha, ini, fin)) continue
+    const bloqueos = await bloqueosDeTorneos(cancha._id, fecha)
+    if (bloqueos.some(b => b.hora_inicio < fin && b.hora_fin > ini)) continue
 
     const estado = rand() < 0.12 ? 'cancelada' : 'confirmada'
     const r = await Reserva.create({

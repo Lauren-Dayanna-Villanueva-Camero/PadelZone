@@ -208,7 +208,7 @@ function MisSolicitudes({ solicitudes, onCancelar, cancelando, onVerTorneos }) {
             <div className="org-solicitud-datos">
               <span><i className="material-icons">calendar_today</i>{formatDateLong(s.fecha_inicio)} – {formatDateLong(s.fecha_fin)}</span>
               <span><i className="material-icons">schedule</i>{formatHour(s.hora_inicio)} – {formatHour(s.hora_fin)}</span>
-              <span><i className="material-icons">sports_tennis</i>{s.canchas.map(c => c.nombre).join(', ')}</span>
+              <span><i className="material-icons">sports_tennis</i>{s.canchas.filter(Boolean).map(c => c.nombre).join(', ')}</span>
               <span><i className="material-icons">how_to_reg</i>Inscripciones: {formatDateShort(s.inscripcion_apertura)} – {formatDateShort(s.inscripcion_cierre)}</span>
               <span>
                 <i className="material-icons">{s.modalidad === 'convenio' ? 'handshake' : 'date_range'}</i>

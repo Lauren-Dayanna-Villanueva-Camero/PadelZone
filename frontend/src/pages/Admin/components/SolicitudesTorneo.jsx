@@ -107,7 +107,7 @@ function SolicitudesTorneo({ solicitudes, loading, error, reload, onAprobada }) 
                       {formatDateShort(s.fecha_inicio)} – {formatDateShort(s.fecha_fin)}
                       <div>{formatHour(s.hora_inicio)} – {formatHour(s.hora_fin)}</div>
                     </td>
-                    <td>{s.canchas.map(c => c.nombre).join(', ')}</td>
+                    <td>{s.canchas.filter(Boolean).map(c => c.nombre).join(', ')}</td>
                     <td>{modalidadTexto(s)}</td>
                     <td><strong>{formatPrice(s.costo?.total)}</strong></td>
                     <td>
@@ -152,7 +152,7 @@ function SolicitudesTorneo({ solicitudes, loading, error, reload, onAprobada }) 
               {' '}{formatHour(detalle.hora_inicio)} – {formatHour(detalle.hora_fin)} · partidos de {detalle.duracion_partido_min} min
             </Dato>
             <Dato icon="sports_tennis" label="Canchas">
-              {detalle.canchas.map(c => `${c.nombre} (${formatPrice(c.precio_por_hora)}/h)`).join(', ')}
+              {detalle.canchas.filter(Boolean).map(c => `${c.nombre} (${formatPrice(c.precio_por_hora)}/h)`).join(', ')}
             </Dato>
             <Dato icon="how_to_reg" label="Inscripciones">
               Abren el {formatDateLong(detalle.inscripcion_apertura)} y cierran el {formatDateLong(detalle.inscripcion_cierre)}

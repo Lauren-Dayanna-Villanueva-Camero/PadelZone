@@ -43,6 +43,7 @@ const SECCIONES = [
 const estadoBadges = {
   proximamente: { label: 'Próximamente', icon: 'update' },
   activo: { label: 'Inscripciones abiertas', icon: 'how_to_reg' },
+  cerradas: { label: 'Inscripciones cerradas', icon: 'lock' },
   en_curso: { label: 'En curso', icon: 'sports_tennis' },
   finalizado: { label: 'Finalizado', icon: 'flag' },
   cancelado: { label: 'Cancelado', icon: 'cancel' }
@@ -64,7 +65,10 @@ const faseDe = (t) => {
 }
 
 function EstadoBadge({ torneo, className = '' }) {
-  const estado = faseDe(torneo) === 'proximamente' ? 'proximamente' : estadoDe(torneo)
+  // Un torneo activo cuyo cierre ya pasó (aún sin procesar) no debe decir "abiertas"
+  const fase = faseDe(torneo)
+  const base = estadoDe(torneo)
+  const estado = fase === 'proximamente' ? 'proximamente' : base === 'activo' && fase === 'cerradas' ? 'cerradas' : base
   const badge = estadoBadges[estado] || estadoBadges.activo
   return (
     <span className={`tournament-state-badge ${estado} ${className}`}>
@@ -302,7 +306,8 @@ function Tournaments() {
 
       <div className="container tournaments-body">
 
-        <nav className="tournaments-tabs" aria-label="Secciones de torneos">
+        {/* div y no <nav>: Materialize le da altura fija de 64px a todo <nav> */}
+        <div className="tournaments-tabs" role="navigation" aria-label="Secciones de torneos">
           {SECCIONES.filter(s => !s.sesion || isAuthenticated).map(s => (
             <button
               key={s.id}
@@ -317,7 +322,7 @@ function Tournaments() {
               )}
             </button>
           ))}
-        </nav>
+        </div>
 
         {activeTab === 'partidos' && <MisPartidos />}
 

@@ -13,7 +13,7 @@ import {
   exportarTorneoApi,
   getErrorMessage
 } from '../../../services/api'
-import { formatPrice, formatDateLong, formatDateShort, formatHour, toDateKey } from '../../../utils/helpers'
+import { formatPrice, formatDateLong, formatDateShort, formatHour, toDateKey, addDaysKey } from '../../../utils/helpers'
 import { useAdmin } from '../../../hooks/useAdmin'
 import { useAdminResource } from '../useAdminResource'
 import Cuadro from '../../../components/Cuadro/Cuadro'
@@ -42,6 +42,18 @@ const blobErrorMessage = async (err, fallback) => {
 
 // Quita los caracteres que Windows no admite en nombres de archivo
 const nombreArchivo = (nombre) => `${nombre.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'torneo'}.xlsx`
+
+// "8 – 10 ago 2026" / "30 nov – 1 dic 2026" para la tabla (las fechas largas partían la columna)
+const rangoFechas = (inicio, fin) => {
+  const a = new Date(toDateKey(inicio) + 'T00:00:00')
+  const b = new Date(toDateKey(fin) + 'T00:00:00')
+  const dm = { day: 'numeric', month: 'short' }
+  if (toDateKey(inicio) === toDateKey(fin)) return b.toLocaleDateString('es-CO', { ...dm, year: 'numeric' })
+  const desde = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()
+    ? a.getDate()
+    : a.toLocaleDateString('es-CO', a.getFullYear() === b.getFullYear() ? dm : { ...dm, year: 'numeric' })
+  return `${desde} – ${b.toLocaleDateString('es-CO', { ...dm, year: 'numeric' })}`
+}
 
 const emptyForm = {
   nombre: '',
@@ -326,17 +338,23 @@ function Torneos() {
   )
 
   // Botones según el estado del torneo
-  const botonesEstado = (t) => (
+  // `compacto` en la tabla: textos cortos para que la columna no se desborde
+  const botonesEstado = (t, compacto = false) => (
     <>
       {t.estado === 'activo' && (
-        <button type="button" className="adm-btn adm-btn--small tor-btn-teal" onClick={() => pedirConfirmacion('cerrar', t)}>
-          <i className="material-icons">lock</i> Cerrar inscripciones y emparejar
+        <button
+          type="button"
+          className="adm-btn adm-btn--small tor-btn-teal"
+          title="Cerrar inscripciones y emparejar"
+          onClick={() => pedirConfirmacion('cerrar', t)}
+        >
+          <i className="material-icons">lock</i> {compacto ? 'Cerrar inscripciones' : 'Cerrar inscripciones y emparejar'}
         </button>
       )}
       {t.estado === 'en_curso' && (
         <>
-          <button type="button" className="adm-btn adm-btn--small tor-btn-teal" onClick={() => pedirConfirmacion('reorganizar', t)}>
-            <i className="material-icons">shuffle</i> Reorganizar parejas
+          <button type="button" className="adm-btn adm-btn--small tor-btn-teal" title="Reorganizar parejas" onClick={() => pedirConfirmacion('reorganizar', t)}>
+            <i className="material-icons">shuffle</i> {compacto ? 'Reorganizar' : 'Reorganizar parejas'}
           </button>
           <button type="button" className="adm-btn adm-btn--small" onClick={() => pedirConfirmacion('finalizar', t)}>
             <i className="material-icons">flag</i> Finalizar
@@ -417,7 +435,7 @@ function Torneos() {
                   <th>Nombre</th>
                   <th>Fechas</th>
                   <th>Parejas / cupo</th>
-                  <th>Inscripción</th>
+                  <th>Precio</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -432,8 +450,8 @@ function Torneos() {
                         <strong>{t.nombre}</strong>
                         <div className="adm-muted">{t.tipo_torneo}</div>
                       </td>
-                      <td className="adm-muted">
-                        {formatDateLong(t.fecha_inicio)} – {formatDateLong(t.fecha_fin)}
+                      <td className="adm-muted tor-fechas">
+                        <span className="tor-rango">{rangoFechas(t.fecha_inicio, t.fecha_fin)}</span>
                         {t.inscripcion_apertura && (
                           <div className="tor-insc">
                             Inscripciones: {formatDateShort(t.inscripcion_apertura)} – {formatDateShort(t.inscripcion_cierre)}
@@ -448,27 +466,31 @@ function Torneos() {
                           <div className="tor-cupo-bar"><div style={{ width: `${pct}%` }} /></div>
                         </div>
                       </td>
-                      <td>{formatPrice(t.precio_inscripcion)}</td>
+                      <td className="tor-nowrap">{formatPrice(t.precio_inscripcion)}</td>
                       <td><span className={`adm-badge adm-badge--${estadoTone[t.estado]}`}>{estadoLabel[t.estado]}</span></td>
                       <td>
-                        <div className="tor-acciones">
-                          {botonesEstado(t)}
-                          <button className="adm-icon-btn" title="Ver organización e inscritos" onClick={() => openDetalle(t)}>
-                            <i className="material-icons">groups</i>
-                          </button>
-                          <button
-                            className="adm-icon-btn"
-                            title="Exportar a Excel"
-                            disabled={exportando === t._id}
-                            onClick={() => exportar(t)}
-                          >
-                            <i className={`material-icons ${exportando === t._id ? 'tor-spin' : ''}`}>
-                              {exportando === t._id ? 'autorenew' : 'download'}
-                            </i>
-                          </button>
-                          <button className="adm-icon-btn" title="Editar" onClick={() => openEdit(t)}>
-                            <i className="material-icons">edit</i>
-                          </button>
+                        <div className="tor-acciones tor-acciones--tabla">
+                          <div className="tor-acciones-iconos">
+                            <button className="adm-icon-btn" title="Ver organización e inscritos" onClick={() => openDetalle(t)}>
+                              <i className="material-icons">groups</i>
+                            </button>
+                            <button
+                              className="adm-icon-btn"
+                              title="Exportar a Excel"
+                              disabled={exportando === t._id}
+                              onClick={() => exportar(t)}
+                            >
+                              <i className={`material-icons ${exportando === t._id ? 'tor-spin' : ''}`}>
+                                {exportando === t._id ? 'autorenew' : 'download'}
+                              </i>
+                            </button>
+                            <button className="adm-icon-btn" title="Editar" onClick={() => openEdit(t)}>
+                              <i className="material-icons">edit</i>
+                            </button>
+                          </div>
+                          {(t.estado === 'activo' || t.estado === 'en_curso') && (
+                            <div className="tor-acciones-estado">{botonesEstado(t, true)}</div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -523,7 +545,7 @@ function Torneos() {
                 type="date"
                 value={form.inscripcion_cierre}
                 min={form.inscripcion_apertura || undefined}
-                max={form.fecha_inicio || undefined}
+                max={form.fecha_inicio ? addDaysKey(form.fecha_inicio, -1) : undefined}
                 onChange={set('inscripcion_cierre')}
               />
             </Field>
@@ -566,7 +588,7 @@ function Torneos() {
       )}
 
       {detalle && (
-        <Modal title={detalle.nombre} onClose={() => { if (!confirm) setDetalle(null) }} wide>
+        <Modal title={detalle.nombre} onClose={() => { if (!confirm) setDetalle(null) }} wide className="tor-modal-detalle">
           <div className="tor-detalle-head">
             <span className={`adm-badge adm-badge--${estadoTone[detalle.estado]}`}>{estadoLabel[detalle.estado]}</span>
             <span className="adm-muted">

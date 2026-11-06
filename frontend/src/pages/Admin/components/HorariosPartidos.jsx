@@ -6,7 +6,7 @@ import {
   reprogramarHorariosApi,
   getErrorMessage
 } from '../../../services/api'
-import { toDateKey, textoHorario } from '../../../utils/helpers'
+import { toDateKey, textoHorario, formatHour } from '../../../utils/helpers'
 import { ErrorBanner, Loading, EmptyState } from './AdminUI'
 
 const nombresPareja = (c) => (c?.nombres?.length ? c.nombres.join(' / ') : c?.equipo ? `Pareja #${c.equipo}` : 'Por definir')
@@ -143,7 +143,7 @@ function HorariosPartidos({ torneo }) {
       <ErrorBanner message={error} />
       <div className="tor-horarios-head">
         <p className="adm-muted">
-          Franja del torneo: {torneo.hora_inicio || '08:00'} – {torneo.hora_fin || '20:00'} · partidos de {torneo.duracion_partido_min || 90} min.
+          Franja del torneo: {formatHour(torneo.hora_inicio || '08:00')} – {formatHour(torneo.hora_fin || '20:00')} · partidos de {torneo.duracion_partido_min || 90} min.
           Los jugadores ven estos horarios en el cuadro y en "Mis partidos".
         </p>
         {confirmar ? (

@@ -47,7 +47,7 @@ export function StatusBadge({ active, activeText = 'Activo', inactiveText = 'Ina
   return <span className={`adm-badge adm-badge--${cls}`}>{active ? activeText : inactiveText}</span>
 }
 
-export function Modal({ title, onClose, children, wide = false }) {
+export function Modal({ title, onClose, children, wide = false, className = '' }) {
   // Cierra con Escape
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -58,7 +58,7 @@ export function Modal({ title, onClose, children, wide = false }) {
   return (
     <div className="adm-modal-overlay" onMouseDown={onClose}>
       <div
-        className={`adm-modal ${wide ? 'adm-modal--wide' : ''}`}
+        className={`adm-modal ${wide ? 'adm-modal--wide' : ''} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}

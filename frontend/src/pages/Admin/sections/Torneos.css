@@ -273,3 +273,61 @@
 @media (max-width: 700px) {
   .sol-datos { grid-template-columns: 1fr; }
 }
+
+/* ─── Ajustes de diseño (tabla, pestañas y modal del detalle) ─── */
+
+/* El select de filtro no debe ocupar todo el ancho (Materialize le da width: 100%) */
+.adm-toolbar select { width: auto; }
+
+/* Fechas compactas en una línea y precio sin partir */
+.tor-rango,
+.tor-nowrap { white-space: nowrap; }
+
+.tor-fechas { min-width: 170px; }
+
+/* Acciones de la tabla: íconos siempre arriba a la derecha y, debajo, los
+   botones que cambian el estado (antes se mezclaban y saltaban de línea) */
+.tor-acciones--tabla {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.tor-acciones-iconos,
+.tor-acciones-estado {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.tor-acciones-iconos { flex-wrap: nowrap; }
+.tor-acciones-estado { flex-wrap: wrap; }
+.tor-acciones-estado .adm-btn { white-space: nowrap; }
+
+/* Botón teal: mantiene su color al pasar el mouse */
+.tor-btn-teal:hover { background: #00796b; border-color: #00796b; opacity: 1; }
+
+/* Las pestañas se desplazan en pantallas angostas en vez de desbordarse */
+.tor-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tor-tabs::-webkit-scrollbar { display: none; }
+.tor-tabs button { white-space: nowrap; flex-shrink: 0; }
+
+/* Detalle del torneo: más ancho para que el cuadro quepa sin desplazarse */
+.adm-modal.tor-modal-detalle { max-width: 1160px; }
+
+/* Campos de horario de cada partido: en una sola línea cuando caben */
+.tor-horario-campos input[type='date'] { min-width: 140px; }
+.tor-horario-campos input[type='time'] { min-width: 110px; }
+
+@media (max-width: 700px) {
+  .tor-acciones--tabla { align-items: flex-start; }
+  .tor-acciones-iconos,
+  .tor-acciones-estado { justify-content: flex-start; }
+}
+
+@media (min-width: 1200px) {
+  .tor-acciones--tabla .tor-acciones-estado { flex-wrap: nowrap; }
+}

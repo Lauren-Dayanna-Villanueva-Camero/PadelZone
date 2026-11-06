@@ -33,6 +33,7 @@
 
 .mp-card.ganado { border-left-color: #f9a825; }
 .mp-card.perdido { border-left-color: #b0bec5; opacity: 0.85; }
+.mp-card.sin_resultado { border-left-color: #ffb74d; }
 
 .mp-dia {
   width: 62px;
@@ -105,6 +106,7 @@
 .mp-resultado i { font-size: 0.95rem; }
 .mp-resultado.ganado { background: #fff8e1; color: #b26a00; }
 .mp-resultado.perdido { background: #eceff1; color: #607d8b; }
+.mp-resultado.sin_resultado { background: #fff3e0; color: #e65100; }
 
 @media (max-width: 600px) {
   .mp-card { flex-wrap: wrap; gap: 12px; padding: 12px 14px; }

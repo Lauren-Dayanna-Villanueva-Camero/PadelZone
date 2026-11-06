@@ -1126,3 +1126,6 @@
 /* Torneo cuyas inscripciones aún no abren */
 .tournament-state-badge.proximamente { background: #e3f2fd; color: #1565c0; }
 .tournament-btn-full.proximamente { background: #e3f2fd; color: #1565c0; }
+
+/* Torneo activo cuyo cierre de inscripciones ya pasó */
+.tournament-state-badge.cerradas { background: #fff3e0; color: #e65100; }

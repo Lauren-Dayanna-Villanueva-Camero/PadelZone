@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getMisPartidosApi, getErrorMessage } from '../../services/api'
-import { formatHour, toDateKey } from '../../utils/helpers'
+import { formatHour, toDateKey, todayKey } from '../../utils/helpers'
 import './MisPartidos.css'
 
 const resultados = {
   pendiente: { label: 'Por jugar', icon: 'schedule' },
   ganado: { label: 'Ganado', icon: 'emoji_events' },
-  perdido: { label: 'Perdido', icon: 'sentiment_dissatisfied' }
+  perdido: { label: 'Perdido', icon: 'sentiment_dissatisfied' },
+  // Ya pasó el día del partido pero el organizador no ha cargado el ganador
+  sin_resultado: { label: 'Resultado pendiente', icon: 'hourglass_empty' }
 }
+
+const yaPaso = (p) => p.horario && toDateKey(p.horario.fecha) < todayKey()
 
 // Bloque de calendario: día y mes grandes para ubicar el partido de un vistazo
 function Dia({ fecha }) {
@@ -29,9 +33,10 @@ function Dia({ fecha }) {
 }
 
 function TarjetaPartido({ p }) {
-  const r = resultados[p.resultado]
+  const estado = p.resultado === 'pendiente' && yaPaso(p) ? 'sin_resultado' : p.resultado
+  const r = resultados[estado]
   return (
-    <div className={`mp-card ${p.resultado}`}>
+    <div className={`mp-card ${estado}`}>
       <Dia fecha={p.horario?.fecha} />
       <div className="mp-info">
         <div className="mp-torneo">
@@ -52,7 +57,7 @@ function TarjetaPartido({ p }) {
           )}
         </div>
       </div>
-      <span className={`mp-resultado ${p.resultado}`}>
+      <span className={`mp-resultado ${estado}`}>
         <i className="material-icons">{r.icon}</i>
         {r.label}
       </span>
@@ -112,8 +117,9 @@ function MisPartidos() {
     )
   }
 
-  const porJugar = partidos.filter(p => p.resultado === 'pendiente')
-  const jugados = partidos.filter(p => p.resultado !== 'pendiente')
+  // Los partidos cuyo día ya pasó van con los jugados aunque falte el resultado
+  const porJugar = partidos.filter(p => p.resultado === 'pendiente' && !yaPaso(p))
+  const jugados = partidos.filter(p => p.resultado !== 'pendiente' || yaPaso(p))
 
   return (
     <div className="mis-partidos">

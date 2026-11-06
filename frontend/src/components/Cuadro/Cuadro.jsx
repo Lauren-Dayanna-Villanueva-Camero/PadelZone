@@ -221,7 +221,7 @@ function Cuadro({ torneoId, admin = false }) {
                   {renderPartido(final.partidos[0])}
                   <div className={`cuadro-campeon ${campeon?.equipo === miEquipo ? 'mio' : ''}`}>
                     <i className="material-icons">emoji_events</i>
-                    <span>{campeon ? campeon.nombres.join(' / ') : 'Campeón por definir'}</span>
+                    <span>{campeon ? campeon.nombres.join(' / ') || `Pareja #${campeon.equipo}` : 'Campeón por definir'}</span>
                   </div>
                 </div>
               </div>

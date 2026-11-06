@@ -69,3 +69,35 @@ export const todayKey = () => {
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+
+// "sáb 15 nov" para fechas de partidos (guardadas como medianoche UTC)
+export const formatDateShort = (value) => {
+  const key = toDateKey(value)
+  if (!key) return '—'
+  return new Date(key + 'T00:00:00').toLocaleDateString('es-CO', {
+    weekday: 'short', day: 'numeric', month: 'short'
+  })
+}
+
+// '14:30' → '2:30 p. m.'
+export const formatHour = (hora) => {
+  if (!hora) return ''
+  const [h, m] = hora.split(':').map(Number)
+  const d = new Date(2000, 0, 1, h, m)
+  return d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })
+}
+
+// Suma días a una fecha 'YYYY-MM-DD'
+export const addDaysKey = (key, dias) => {
+  const d = new Date(key + 'T00:00:00')
+  d.setDate(d.getDate() + dias)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// "sáb, 15 nov · 8:00 a. m. · Cancha 2" o "Horario por definir"
+export const textoHorario = (horario) => {
+  if (!horario) return 'Horario por definir'
+  return [formatDateShort(horario.fecha), formatHour(horario.hora_inicio), horario.cancha?.nombre]
+    .filter(Boolean).join(' · ')
+}

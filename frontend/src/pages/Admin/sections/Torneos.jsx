@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   getTorneosApi,
+  getSolicitudesApi,
+  getCanchasApi,
   getTorneoByIdApi,
   createTorneoApi,
   updateTorneoApi,
@@ -11,10 +13,12 @@ import {
   exportarTorneoApi,
   getErrorMessage
 } from '../../../services/api'
-import { formatPrice, formatDateLong, toDateKey } from '../../../utils/helpers'
+import { formatPrice, formatDateLong, formatDateShort, formatHour, toDateKey } from '../../../utils/helpers'
 import { useAdmin } from '../../../hooks/useAdmin'
 import { useAdminResource } from '../useAdminResource'
 import Cuadro from '../../../components/Cuadro/Cuadro'
+import HorariosPartidos from '../components/HorariosPartidos'
+import SolicitudesTorneo from '../components/SolicitudesTorneo'
 import {
   PageHeader, ErrorBanner, Loading, EmptyState, Modal, ConfirmDialog, Field
 } from '../components/AdminUI'
@@ -46,7 +50,14 @@ const emptyForm = {
   fecha_fin: '',
   cupo_maximo_parejas: '16',
   precio_inscripcion: '',
-  estado: 'activo'
+  estado: 'activo',
+  inscripcion_apertura: '',
+  inscripcion_cierre: '',
+  hora_inicio: '08:00',
+  hora_fin: '20:00',
+  duracion_partido_min: '90',
+  canchas: [],
+  organizador: ''
 }
 
 const toForm = (t) => ({
@@ -56,7 +67,15 @@ const toForm = (t) => ({
   fecha_fin: toDateKey(t.fecha_fin),
   cupo_maximo_parejas: String(t.cupo_maximo_parejas),
   precio_inscripcion: String(t.precio_inscripcion),
-  estado: t.estado
+  estado: t.estado,
+  inscripcion_apertura: toDateKey(t.inscripcion_apertura),
+  inscripcion_cierre: toDateKey(t.inscripcion_cierre),
+  hora_inicio: t.hora_inicio || '08:00',
+  hora_fin: t.hora_fin || '20:00',
+  duracion_partido_min: String(t.duracion_partido_min || 90),
+  // getTorneos devuelve las canchas con nombre; aquí basta el id
+  canchas: (t.canchas || []).map(c => c._id ?? c),
+  organizador: t.organizador || ''
 })
 
 // Acciones que cambian el estado o la organización: todas piden confirmación
@@ -112,7 +131,19 @@ function Integrante({ i }) {
 
 function Torneos() {
   const { items: torneos, loading, error, reload } = useAdminResource(getTorneosApi)
+  const solicitudesRes = useAdminResource(getSolicitudesApi)
+  const pendientes = solicitudesRes.items.filter(s => s.estado === 'pendiente').length
   const { loadStats } = useAdmin()
+  const [vista, setVista] = useState('torneos') // 'torneos' | 'solicitudes'
+  const [canchas, setCanchas] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    getCanchasApi(true)
+      .then(res => { if (!cancelled) setCanchas(res.data) })
+      .catch(() => { if (!cancelled) setCanchas([]) })
+    return () => { cancelled = true }
+  }, [])
 
   const [filtro, setFiltro] = useState('')
 
@@ -140,6 +171,10 @@ function Torneos() {
   const openNew = () => { setForm(emptyForm); setFormError(''); setEditing('new') }
   const openEdit = (t) => { setForm(toForm(t)); setFormError(''); setEditing(t) }
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  const toggleCancha = (id) => setForm(f => ({
+    ...f,
+    canchas: f.canchas.includes(id) ? f.canchas.filter(c => c !== id) : [...f.canchas, id]
+  }))
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -150,6 +185,16 @@ function Torneos() {
     if (form.fecha_fin < form.fecha_inicio) return setFormError('La fecha de fin no puede ser anterior a la de inicio')
     if (!Number.isInteger(cupo) || cupo < 1) return setFormError('El cupo debe ser un entero mayor que 0')
     if (!Number.isFinite(precio) || precio < 0) return setFormError('El precio de inscripción no es válido')
+    if (Boolean(form.inscripcion_apertura) !== Boolean(form.inscripcion_cierre)) {
+      return setFormError('Indica la apertura y el cierre de las inscripciones')
+    }
+    if (form.inscripcion_cierre && form.inscripcion_cierre < form.inscripcion_apertura) {
+      return setFormError('El cierre de inscripciones no puede ser anterior a la apertura')
+    }
+    if (form.inscripcion_cierre && form.inscripcion_cierre >= form.fecha_inicio) {
+      return setFormError('Las inscripciones deben cerrar antes del día de inicio del torneo')
+    }
+    if (form.hora_fin <= form.hora_inicio) return setFormError('La hora de fin de los partidos debe ser posterior a la de inicio')
 
     const payload = {
       nombre: form.nombre.trim(),
@@ -158,14 +203,22 @@ function Torneos() {
       fecha_fin: form.fecha_fin,
       cupo_maximo_parejas: cupo,
       precio_inscripcion: precio,
-      estado: form.estado
+      estado: form.estado,
+      inscripcion_apertura: form.inscripcion_apertura || null,
+      inscripcion_cierre: form.inscripcion_cierre || null,
+      hora_inicio: form.hora_inicio,
+      hora_fin: form.hora_fin,
+      duracion_partido_min: Number(form.duracion_partido_min),
+      canchas: form.canchas,
+      organizador: form.organizador.trim()
     }
 
     setSaving(true)
     setFormError('')
     try {
-      if (editing === 'new') await createTorneoApi(payload)
-      else await updateTorneoApi(editing._id, payload)
+      const res = editing === 'new' ? await createTorneoApi(payload) : await updateTorneoApi(editing._id, payload)
+      // Avisos del backend: alguien sin pareja o cruces con reservas
+      if (res.data.aviso) setAviso({ tone: 'warn', text: res.data.aviso })
       setEditing(null)
       reload()
       loadStats()
@@ -305,14 +358,35 @@ function Torneos() {
     <div>
       <PageHeader
         title="Torneos"
-        subtitle="Programa torneos, cierra inscripciones y organiza las parejas"
-        action={
+        subtitle="Programa torneos, cierra inscripciones, organiza las parejas y responde las solicitudes de empresas"
+        action={vista === 'torneos' && (
           <button className="adm-btn" onClick={openNew}>
             <i className="material-icons">add</i> Nuevo torneo
           </button>
-        }
+        )}
       />
 
+      <div className="tor-tabs tor-vistas" role="tablist">
+        <button type="button" role="tab" aria-selected={vista === 'torneos'} className={vista === 'torneos' ? 'is-active' : ''} onClick={() => setVista('torneos')}>
+          <i className="material-icons">emoji_events</i> Torneos
+        </button>
+        <button type="button" role="tab" aria-selected={vista === 'solicitudes'} className={vista === 'solicitudes' ? 'is-active' : ''} onClick={() => setVista('solicitudes')}>
+          <i className="material-icons">business</i> Solicitudes de empresas
+          {pendientes > 0 && <span className="tor-tab-count">{pendientes}</span>}
+        </button>
+      </div>
+
+      {vista === 'solicitudes' && (
+        <SolicitudesTorneo
+          solicitudes={solicitudesRes.items}
+          loading={solicitudesRes.loading}
+          error={solicitudesRes.error}
+          reload={solicitudesRes.reload}
+          onAprobada={() => { reload(); loadStats() }}
+        />
+      )}
+
+      {vista === 'torneos' && (<>
       <div className="adm-toolbar">
         <select value={filtro} onChange={e => setFiltro(e.target.value)}>
           <option value="">Todos los estados</option>
@@ -358,7 +432,16 @@ function Torneos() {
                         <strong>{t.nombre}</strong>
                         <div className="adm-muted">{t.tipo_torneo}</div>
                       </td>
-                      <td className="adm-muted">{formatDateLong(t.fecha_inicio)} – {formatDateLong(t.fecha_fin)}</td>
+                      <td className="adm-muted">
+                        {formatDateLong(t.fecha_inicio)} – {formatDateLong(t.fecha_fin)}
+                        {t.inscripcion_apertura && (
+                          <div className="tor-insc">
+                            Inscripciones: {formatDateShort(t.inscripcion_apertura)} – {formatDateShort(t.inscripcion_cierre)}
+                            {t.fase_inscripcion === 'proximamente' && <span className="adm-badge adm-badge--info">Próximamente</span>}
+                          </div>
+                        )}
+                        {t.organizador && <div className="tor-insc">Organiza: {t.organizador}</div>}
+                      </td>
                       <td>
                         <div className="tor-cupo" title={`${t.participantes_inscritos} jugadores inscritos`}>
                           <span><strong>{ocupadas}</strong> / {t.cupo_maximo_parejas}</span>
@@ -396,6 +479,7 @@ function Torneos() {
           </div>
         )}
       </div>
+      </>)}
 
       {editing && (
         <Modal title={editing === 'new' ? 'Nuevo torneo' : `Editar ${editing.nombre}`} onClose={() => setEditing(null)}>
@@ -431,6 +515,48 @@ function Torneos() {
             <Field label="Precio de inscripción (COP) *">
               <input type="number" min="0" step="1000" value={form.precio_inscripcion} onChange={set('precio_inscripcion')} required />
             </Field>
+            <Field label="Apertura de inscripciones" hint="Antes de esta fecha el torneo sale como Próximamente">
+              <input type="date" value={form.inscripcion_apertura} onChange={set('inscripcion_apertura')} />
+            </Field>
+            <Field label="Cierre de inscripciones" hint="Debe ser antes del inicio. Pasado ese día se cierran solas y se arman parejas, cuadro y horarios">
+              <input
+                type="date"
+                value={form.inscripcion_cierre}
+                min={form.inscripcion_apertura || undefined}
+                max={form.fecha_inicio || undefined}
+                onChange={set('inscripcion_cierre')}
+              />
+            </Field>
+            <Field label="Partidos desde">
+              <input type="time" step="1800" value={form.hora_inicio} onChange={set('hora_inicio')} required />
+            </Field>
+            <Field label="Partidos hasta">
+              <input type="time" step="1800" value={form.hora_fin} onChange={set('hora_fin')} required />
+            </Field>
+            <Field label="Duración de cada partido">
+              <select value={form.duracion_partido_min} onChange={set('duracion_partido_min')}>
+                <option value="60">60 minutos</option>
+                <option value="90">90 minutos</option>
+                <option value="120">120 minutos</option>
+              </select>
+            </Field>
+            <Field label="Organizador (empresa)">
+              <input value={form.organizador} onChange={set('organizador')} placeholder="Opcional" />
+            </Field>
+            <div className="adm-field adm-field--full">
+              <span className="adm-field-label">Canchas del torneo</span>
+              <div className="tor-canchas">
+                {canchas.map(c => (
+                  <label className="adm-check" key={c._id}>
+                    <input type="checkbox" checked={form.canchas.includes(c._id)} onChange={() => toggleCancha(c._id)} />
+                    {c.nombre}{!c.activa && ' (inactiva)'}
+                  </label>
+                ))}
+              </div>
+              <span className="adm-field-hint">
+                Las canchas elegidas quedan apartadas para reservas en los días y la franja del torneo. Sin canchas, los partidos se reparten en todas las activas sin bloquear reservas.
+              </span>
+            </div>
             <div className="adm-form-actions">
               <button type="button" className="adm-btn adm-btn--ghost" onClick={() => setEditing(null)}>Cancelar</button>
               <button type="submit" className="adm-btn" disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
@@ -456,6 +582,9 @@ function Torneos() {
             <button type="button" role="tab" aria-selected={tab === 'organizacion'} className={tab === 'organizacion' ? 'is-active' : ''} onClick={() => setTab('organizacion')}>
               <i className="material-icons">group_work</i> Organización
             </button>
+            <button type="button" role="tab" aria-selected={tab === 'horarios'} className={tab === 'horarios' ? 'is-active' : ''} onClick={() => setTab('horarios')}>
+              <i className="material-icons">schedule</i> Horarios
+            </button>
             <button type="button" role="tab" aria-selected={tab === 'inscritos'} className={tab === 'inscritos' ? 'is-active' : ''} onClick={() => setTab('inscritos')}>
               <i className="material-icons">list</i> Inscritos
             </button>
@@ -465,7 +594,13 @@ function Torneos() {
 
           {detalleLoading && !detalle.participantes ? (
             <Loading text="Cargando detalle..." />
-          ) : !detalle.participantes ? null : tab === 'organizacion' ? (
+          ) : !detalle.participantes ? null : tab === 'horarios' ? (
+            detalle.estado === 'activo' ? (
+              <EmptyState icon="schedule" text={`Los horarios se programan al cerrar las inscripciones. Franja del torneo: ${formatHour(detalle.hora_inicio || '08:00')} – ${formatHour(detalle.hora_fin || '20:00')}.`} />
+            ) : (
+              <HorariosPartidos key={`${detalle._id}-${cuadroVersion}`} torneo={detalle} />
+            )
+          ) : tab === 'organizacion' ? (
             detalle.estado === 'activo' ? (
               <EmptyState icon="lock_open" text="Las inscripciones siguen abiertas. Las parejas se organizan al cerrar inscripciones." />
             ) : !org || (org.equipos.length === 0 && org.sin_pareja_asignada.length === 0) ? (

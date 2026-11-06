@@ -2,9 +2,11 @@ import mongoose from 'mongoose'
 import Reserva from '../models/reserva.model.js'
 import Cancha from '../models/cancha.model.js'
 import { reservaSchema } from '../schema/reserva.schema.js'
+import { bloqueosDeTorneos } from '../libs/horarios.js'
 
 // GET /api/reservas/ocupados?cancha_id=...&fecha=YYYY-MM-DD — público
-// Devuelve solo los rangos ocupados, sin datos de usuarios
+// Devuelve solo los rangos ocupados, sin datos de usuarios. Incluye las franjas
+// que un torneo tiene apartadas en esa cancha (alquiler por bloque)
 export const getHorariosOcupados = async (req, res) => {
   try {
     const { cancha_id, fecha } = req.query
@@ -18,8 +20,9 @@ export const getHorariosOcupados = async (req, res) => {
       fecha: new Date(fecha),
       estado: { $ne: 'cancelada' }
     }).select('hora_inicio hora_fin -_id')
+    const torneos = await bloqueosDeTorneos(cancha_id, new Date(fecha))
 
-    return res.status(200).json(ocupados)
+    return res.status(200).json([...ocupados.map(o => o.toObject()), ...torneos])
   } catch (error) {
     console.error('Error en getHorariosOcupados:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
@@ -118,6 +121,15 @@ export const createReserva = async (req, res) => {
     if (conflicto) {
       return res.status(409).json({
         message: 'La cancha ya está reservada en ese horario'
+      })
+    }
+
+    // Franjas apartadas por un torneo en esa cancha y día
+    const bloqueo = (await bloqueosDeTorneos(cancha_id, new Date(fecha)))
+      .find(b => b.hora_inicio < hora_fin && b.hora_fin > hora_inicio)
+    if (bloqueo) {
+      return res.status(409).json({
+        message: `La cancha está apartada para el torneo "${bloqueo.torneo}" de ${bloqueo.hora_inicio} a ${bloqueo.hora_fin}`
       })
     }
 

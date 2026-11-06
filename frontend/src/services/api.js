@@ -85,6 +85,20 @@ export const exportarTorneoApi = (id) => api.get(`/torneos/${id}/exportar`, { re
 export const getCuadroTorneoApi = (id) => api.get(`/torneos/${id}/cuadro`)
 export const setGanadorPartidoApi = (torneoId, partidoId, ganador) =>
   api.put(`/torneos/${torneoId}/partidos/${partidoId}`, { ganador })
+// Horarios de los partidos: los del usuario y, para el admin, ajustar o recalcular
+export const getMisPartidosApi = () => api.get('/torneos/mis-partidos')
+export const setHorarioPartidoApi = (torneoId, partidoId, data) =>
+  api.put(`/torneos/${torneoId}/partidos/${partidoId}/horario`, data)
+export const reprogramarHorariosApi = (torneoId) => api.put(`/torneos/${torneoId}/reprogramar`)
+
+// ─── SOLICITUDES DE TORNEO (empresas) ───────────────
+export const cotizarSolicitudApi = (data) => api.post('/solicitudes-torneo/cotizar', data)
+export const createSolicitudApi = (data) => api.post('/solicitudes-torneo', data)
+export const getMisSolicitudesApi = () => api.get('/solicitudes-torneo/mias')
+export const cancelarSolicitudApi = (id) => api.put(`/solicitudes-torneo/${id}/cancelar`)
+export const getSolicitudesApi = () => api.get('/solicitudes-torneo')
+export const aprobarSolicitudApi = (id, respuesta) => api.put(`/solicitudes-torneo/${id}/aprobar`, { respuesta })
+export const rechazarSolicitudApi = (id, respuesta) => api.put(`/solicitudes-torneo/${id}/rechazar`, { respuesta })
 
 // ─── CLASES ─────────────────────────────────────────
 export const getMisClasesApi = () => api.get('/clases/mis-inscripciones')

@@ -3,10 +3,19 @@ import Torneo from '../models/torneo.model.js'
 import Participante from '../models/participante.model.js'
 import User from '../models/user.model.js'
 import Partido from '../models/partido.model.js'
-import { torneoSchema, torneoUpdateSchema, inscripcionSchema, ganadorSchema } from '../schema/torneo.schema.js'
+import Cancha from '../models/cancha.model.js'
 import {
-  finalizarTorneosVencidos,
+  torneoSchema,
+  torneoUpdateSchema,
+  inscripcionSchema,
+  ganadorSchema,
+  horarioPartidoSchema
+} from '../schema/torneo.schema.js'
+import {
+  actualizarEstadosTorneos,
+  inicioDeHoy,
   torneoTerminado,
+  faseInscripcion,
   contarParejas,
   jugadoresLibres,
   cuposLlenos,
@@ -16,8 +25,11 @@ import {
   avisoSinPareja,
   obtenerOrganizacion,
   obtenerCuadro,
-  llaveSiguiente
+  llaveSiguiente,
+  reprogramarPartidos,
+  obtenerMisPartidos
 } from '../libs/torneos.js'
+import { errorProgramacion, conflictosBloque, aMinutos, aHora, diaKey } from '../libs/horarios.js'
 import { isAdminRequest } from '../middlewares/auth.middleware.js'
 
 // Usuarios que forman parte de un torneo: inscritos o declarados como pareja de un inscrito
@@ -26,14 +38,34 @@ const filtroParticipacion = (torneoId, usuarioId) => ({
   $or: [{ usuario_id: usuarioId }, { pareja_usuario_id: usuarioId }]
 })
 
+// Campos de fecha del formulario ('YYYY-MM-DD') que se guardan como Date
+const CAMPOS_FECHA = ['fecha_inicio', 'fecha_fin', 'inscripcion_apertura', 'inscripcion_cierre']
+const aFechas = (data) => {
+  const out = { ...data }
+  for (const campo of CAMPOS_FECHA) {
+    if (out[campo]) out[campo] = new Date(out[campo])
+  }
+  return out
+}
+
+// Cambios que obligan a recalcular los horarios de los partidos
+const CAMPOS_PROGRAMACION = ['fecha_inicio', 'fecha_fin', 'hora_inicio', 'hora_fin', 'duracion_partido_min', 'canchas']
+
+// Aviso (no bloquea) si las canchas del torneo se cruzan con reservas u otros torneos
+const avisoCruces = async (torneo) => {
+  const cruces = await conflictosBloque({ ...torneo.toObject(), excluirTorneoId: torneo._id })
+  if (!cruces.length) return null
+  return `Ojo: hay ${cruces.length} reserva(s) o torneo(s) que se cruzan con las canchas y el horario de este torneo`
+}
+
 // GET /api/torneos
 export const getTorneos = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const { estado } = req.query
     const filter = estado ? { estado } : {}
 
-    const torneos = await Torneo.find(filter).sort({ fecha_inicio: 1 })
+    const torneos = await Torneo.find(filter).populate('canchas', 'nombre').sort({ fecha_inicio: 1 })
 
     // Agregar conteo de participantes (jugadores) y de cupos ocupados (parejas)
     const torneosConParticipantes = await Promise.all(
@@ -42,6 +74,7 @@ export const getTorneos = async (req, res) => {
           .select('usuario_id pareja_usuario_id fecha_inscripcion')
         return {
           ...torneo.toObject(),
+          fase_inscripcion: faseInscripcion(torneo),
           participantes_inscritos: participantes.length,
           parejas_inscritas: contarParejas(participantes),
           jugadores_libres: jugadoresLibres(participantes, torneo.cupo_maximo_parejas)
@@ -59,8 +92,8 @@ export const getTorneos = async (req, res) => {
 // GET /api/torneos/:id
 export const getTorneoById = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
-    const torneo = await Torneo.findById(req.params.id)
+    await actualizarEstadosTorneos()
+    const torneo = await Torneo.findById(req.params.id).populate('canchas', 'nombre')
 
     if (!torneo) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
@@ -71,6 +104,7 @@ export const getTorneoById = async (req, res) => {
 
     const respuesta = {
       ...torneo.toObject(),
+      fase_inscripcion: faseInscripcion(torneo),
       participantes_inscritos: participantes.length,
       parejas_inscritas: contarParejas(participantes),
       jugadores_libres: jugadoresLibres(participantes, torneo.cupo_maximo_parejas)
@@ -112,17 +146,23 @@ export const createTorneo = async (req, res) => {
       })
     }
 
-    const newTorneo = new Torneo({
-      ...parsed.data,
-      fecha_inicio: new Date(parsed.data.fecha_inicio),
-      fecha_fin: new Date(parsed.data.fecha_fin)
-    })
+    const data = aFechas(parsed.data)
+    const errorFechas = errorProgramacion(data)
+    if (errorFechas) {
+      return res.status(400).json({ message: errorFechas, errors: [errorFechas] })
+    }
+    if (data.canchas?.length && await Cancha.countDocuments({ _id: { $in: data.canchas } }) !== new Set(data.canchas).size) {
+      return res.status(400).json({ message: 'Alguna de las canchas elegidas no existe' })
+    }
 
+    const newTorneo = new Torneo(data)
     await newTorneo.save()
+    const aviso = await avisoCruces(newTorneo)
 
     return res.status(201).json({
       message: 'Torneo creado exitosamente',
-      torneo: newTorneo
+      torneo: newTorneo,
+      ...(aviso && { aviso })
     })
   } catch (error) {
     console.error('Error en createTorneo:', error)
@@ -141,13 +181,27 @@ export const updateTorneo = async (req, res) => {
       })
     }
 
-    const data = { ...parsed.data }
-    if (data.fecha_inicio) data.fecha_inicio = new Date(data.fecha_inicio)
-    if (data.fecha_fin) data.fecha_fin = new Date(data.fecha_fin)
+    const data = aFechas(parsed.data)
 
     const actual = await Torneo.findById(req.params.id)
     if (!actual) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
+    }
+
+    // Las reglas de fechas se revisan con lo guardado + lo que cambia
+    const final = { ...actual.toObject(), ...data }
+    const errorFechas = errorProgramacion(final)
+    if (errorFechas) {
+      return res.status(400).json({ message: errorFechas, errors: [errorFechas] })
+    }
+    if (data.canchas?.length && await Cancha.countDocuments({ _id: { $in: data.canchas } }) !== new Set(data.canchas).size) {
+      return res.status(400).json({ message: 'Alguna de las canchas elegidas no existe' })
+    }
+    // Reabrir (o dejar activo) un torneo con el cierre ya vencido lo volvería a cerrar al instante
+    if (final.estado === 'activo' && final.inscripcion_cierre && new Date(final.inscripcion_cierre) < inicioDeHoy()) {
+      return res.status(400).json({
+        message: 'La fecha de cierre de inscripciones ya pasó; muévela para dejar el torneo con inscripciones abiertas'
+      })
     }
 
     // El cupo no puede quedar por debajo de las parejas ya inscritas
@@ -200,10 +254,19 @@ export const updateTorneo = async (req, res) => {
       await limpiarEquipos(torneo._id)
     }
 
+    // Si cambian días, franja o canchas de un cuadro ya armado, se recalculan los horarios
+    const cambioProgramacion = CAMPOS_PROGRAMACION.some(c =>
+      data[c] !== undefined && JSON.stringify(data[c]) !== JSON.stringify(actual[c]))
+    if (cambioProgramacion && torneo.estado !== 'activo') {
+      await reprogramarPartidos(torneo._id)
+    }
+    const cruces = await avisoCruces(torneo)
+    const avisos = [aviso, cruces].filter(Boolean).join('. ')
+
     return res.status(200).json({
       message: 'Torneo actualizado exitosamente',
       torneo,
-      ...(aviso && { aviso })
+      ...(avisos && { aviso: avisos })
     })
   } catch (error) {
     console.error('Error en updateTorneo:', error)
@@ -234,7 +297,7 @@ export const deleteTorneo = async (req, res) => {
 // POST /api/torneos/:id/inscribir
 export const inscribirParticipante = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const torneo = await Torneo.findById(req.params.id)
 
     if (!torneo) {
@@ -251,6 +314,16 @@ export const inscribirParticipante = async (req, res) => {
 
     if (torneo.estado !== 'activo') {
       return res.status(400).json({ message: 'El torneo no está activo' })
+    }
+
+    const fase = faseInscripcion(torneo)
+    if (fase === 'proximamente') {
+      return res.status(400).json({
+        message: `Las inscripciones de este torneo abren el ${diaKey(torneo.inscripcion_apertura)}`
+      })
+    }
+    if (fase === 'cerradas') {
+      return res.status(400).json({ message: 'Las inscripciones de este torneo ya están cerradas' })
     }
 
     const parsed = inscripcionSchema.safeParse(req.body ?? {})
@@ -360,7 +433,7 @@ export const updateParticipante = async (req, res) => {
 // GET /api/torneos/mis-inscripciones
 export const getMisInscripciones = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const yo = req.user._id.toString()
     const datosUsuario = 'nombre apellido email telefono'
 
@@ -415,6 +488,7 @@ export const getMisInscripciones = async (req, res) => {
         _id: r._id,
         torneo_id: torneo,
         estado: torneo.estado,
+        fase_inscripcion: faseInscripcion(torneo),
         fecha_inscripcion: r.fecha_inscripcion,
         pago_confirmado: r.pago_confirmado,
         pareja_usuario_id: contacto(propia ? r.pareja_usuario_id : r.usuario_id),
@@ -469,7 +543,7 @@ export const cancelarInscripcion = async (req, res) => {
 // PUT /api/torneos/:id/cerrar-inscripciones — solo admin
 export const cerrarInscripciones = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const actual = await Torneo.findById(req.params.id)
     if (!actual) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
@@ -501,7 +575,7 @@ export const cerrarInscripciones = async (req, res) => {
 // PUT /api/torneos/:id/reorganizar — solo admin: vuelve a emparejar al azar a los sueltos
 export const reorganizarTorneo = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const torneo = await Torneo.findById(req.params.id)
     if (!torneo) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
@@ -612,7 +686,7 @@ export const exportarTorneo = async (req, res) => {
 // GET /api/torneos/:id/cuadro — solo el admin y quienes participan en el torneo
 export const getCuadro = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const torneo = await Torneo.findById(req.params.id)
     if (!torneo) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
@@ -698,6 +772,106 @@ export const setGanadorPartido = async (req, res) => {
     })
   } catch (error) {
     console.error('Error en setGanadorPartido:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// GET /api/torneos/mis-partidos — partidos del usuario con fecha, hora, cancha y rival
+export const getMisPartidos = async (req, res) => {
+  try {
+    await actualizarEstadosTorneos()
+    const partidos = await obtenerMisPartidos(req.user._id)
+    return res.status(200).json(partidos)
+  } catch (error) {
+    console.error('Error en getMisPartidos:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// PUT /api/torneos/:id/partidos/:partidoId/horario — solo admin: ajusta fecha, hora y cancha
+export const setHorarioPartido = async (req, res) => {
+  try {
+    const parsed = horarioPartidoSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: 'Datos inválidos',
+        errors: parsed.error.issues.map(e => e.message)
+      })
+    }
+    const { fecha, hora_inicio: horaInicio, cancha_id: canchaId = null } = parsed.data
+
+    const torneo = await Torneo.findById(req.params.id)
+    if (!torneo) {
+      return res.status(404).json({ message: 'Torneo no encontrado' })
+    }
+    const partido = await Partido.findOne({ _id: req.params.partidoId, torneo_id: torneo._id })
+    if (!partido) {
+      return res.status(404).json({ message: 'Partido no encontrado' })
+    }
+
+    let horario = { fecha: null, hora_inicio: null, hora_fin: null, cancha_id: null }
+    if (fecha) {
+      if (fecha < diaKey(torneo.fecha_inicio) || fecha > diaKey(torneo.fecha_fin)) {
+        return res.status(400).json({ message: 'La fecha debe estar entre el inicio y el fin del torneo' })
+      }
+      const fin = aMinutos(horaInicio) + (torneo.duracion_partido_min || 90)
+      if (horaInicio < '07:00' || fin > aMinutos('23:00')) {
+        return res.status(400).json({ message: 'El partido debe jugarse entre las 7:00 y las 23:00' })
+      }
+      if (canchaId && !await Cancha.exists({ _id: canchaId })) {
+        return res.status(404).json({ message: 'La cancha no existe' })
+      }
+      horario = { fecha: new Date(fecha), hora_inicio: horaInicio, hora_fin: aHora(fin), cancha_id: canchaId }
+
+      // Dos partidos del torneo no pueden coincidir en la misma cancha
+      if (canchaId) {
+        const choque = await Partido.exists({
+          torneo_id: torneo._id,
+          _id: { $ne: partido._id },
+          cancha_id: canchaId,
+          fecha: horario.fecha,
+          hora_inicio: { $lt: horario.hora_fin },
+          hora_fin: { $gt: horario.hora_inicio }
+        })
+        if (choque) {
+          return res.status(409).json({ message: 'Ya hay otro partido del torneo en esa cancha y horario' })
+        }
+      }
+    }
+
+    Object.assign(partido, horario)
+    await partido.save()
+
+    const cuadro = await obtenerCuadro(torneo._id, req.user._id)
+    return res.status(200).json({
+      message: fecha ? 'Horario actualizado' : 'Horario eliminado (por definir)',
+      cuadro: { torneo_id: torneo._id, nombre: torneo.nombre, estado: torneo.estado, publicado: true, ...cuadro }
+    })
+  } catch (error) {
+    console.error('Error en setHorarioPartido:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// PUT /api/torneos/:id/reprogramar — solo admin: recalcula todos los horarios (conserva resultados)
+export const reprogramarHorarios = async (req, res) => {
+  try {
+    const torneo = await Torneo.findById(req.params.id)
+    if (!torneo) {
+      return res.status(404).json({ message: 'Torneo no encontrado' })
+    }
+    const total = await reprogramarPartidos(torneo._id)
+    if (!total) {
+      return res.status(400).json({ message: 'El torneo aún no tiene cuadro; se arma al cerrar las inscripciones' })
+    }
+
+    const cuadro = await obtenerCuadro(torneo._id, req.user._id)
+    return res.status(200).json({
+      message: 'Horarios recalculados',
+      cuadro: { torneo_id: torneo._id, nombre: torneo.nombre, estado: torneo.estado, publicado: true, ...cuadro }
+    })
+  } catch (error) {
+    console.error('Error en reprogramarHorarios:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
 }

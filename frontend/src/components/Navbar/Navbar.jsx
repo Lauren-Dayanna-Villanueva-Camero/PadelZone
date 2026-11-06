@@ -8,11 +8,13 @@ function Navbar() {
   const navigate = useNavigate()
   const [servicesOpen, setServicesOpen] = useState(false)
   const dropdownRef = useRef(null)
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   // Menú móvil: guarda la ruta en la que se abrió, así se cierra solo al navegar
+  // (incluye ?seccion= para que también se cierre al cambiar de sección de Torneos)
+  const ruta = pathname + search
   const [mobileOpenAt, setMobileOpenAt] = useState(null)
-  const mobileOpen = mobileOpenAt === pathname
-  const toggleMobile = () => setMobileOpenAt(mobileOpen ? null : pathname)
+  const mobileOpen = mobileOpenAt === ruta
+  const toggleMobile = () => setMobileOpenAt(mobileOpen ? null : ruta)
 
   const handleLogout = async () => {
     setMobileOpenAt(null)
@@ -72,6 +74,17 @@ function Navbar() {
                   <i className="material-icons">emoji_events</i>
                   Torneos
                 </Link>
+                {/* Submenú de Torneos */}
+                {isAuthenticated && (
+                  <Link to="/torneos?seccion=partidos" className="nav-dropdown-item nav-dropdown-subitem" onClick={() => setServicesOpen(false)}>
+                    <i className="material-icons">event</i>
+                    Mis partidos
+                  </Link>
+                )}
+                <Link to="/torneos?seccion=organiza" className="nav-dropdown-item nav-dropdown-subitem" onClick={() => setServicesOpen(false)}>
+                  <i className="material-icons">business</i>
+                  Organiza tu torneo
+                </Link>
                 <Link to="/clima" className="nav-dropdown-item" onClick={() => setServicesOpen(false)}>
                   <i className="material-icons">wb_sunny</i>
                   Clima
@@ -130,6 +143,10 @@ function Navbar() {
           <Link to="/clases"><i className="material-icons">school</i>Clases</Link>
           <Link to="/tiendas"><i className="material-icons">storefront</i>Tiendas</Link>
           <Link to="/torneos"><i className="material-icons">emoji_events</i>Torneos</Link>
+          {isAuthenticated && (
+            <Link to="/torneos?seccion=partidos" className="nav-mobile-subitem"><i className="material-icons">event</i>Mis partidos</Link>
+          )}
+          <Link to="/torneos?seccion=organiza" className="nav-mobile-subitem"><i className="material-icons">business</i>Organiza tu torneo</Link>
           <Link to="/clima"><i className="material-icons">wb_sunny</i>Clima</Link>
           <span className="nav-mobile-section" />
           <Link to="/contacto"><i className="material-icons">mail</i>Contacto</Link>

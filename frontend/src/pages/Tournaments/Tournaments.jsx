@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import {
   getTorneosApi,
@@ -8,8 +8,12 @@ import {
   cancelarInscripcionApi,
   getErrorMessage
 } from '../../services/api'
-import { getTournamentImage, formatDateLong, formatPrice, toDateKey, todayKey } from '../../utils/helpers'
+import {
+  getTournamentImage, formatDateLong, formatDateShort, formatHour, formatPrice, toDateKey, todayKey
+} from '../../utils/helpers'
 import Cuadro from '../../components/Cuadro/Cuadro'
+import MisPartidos from './MisPartidos'
+import OrganizaTorneo from './OrganizaTorneo'
 import './Tournaments.css'
 
 const categoryColors = {
@@ -28,7 +32,16 @@ const emptyPayment = { card: '', holder: '', expiry: '', cvv: '' }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// Submenú de Torneos (se guarda en la URL: /torneos?seccion=partidos)
+const SECCIONES = [
+  { id: 'disponibles', label: 'Torneos disponibles', icon: 'emoji_events' },
+  { id: 'inscripciones', label: 'Mis inscripciones', icon: 'how_to_reg', sesion: true },
+  { id: 'partidos', label: 'Mis partidos', icon: 'event', sesion: true },
+  { id: 'organiza', label: 'Organiza tu torneo', icon: 'business' }
+]
+
 const estadoBadges = {
+  proximamente: { label: 'Próximamente', icon: 'update' },
   activo: { label: 'Inscripciones abiertas', icon: 'how_to_reg' },
   en_curso: { label: 'En curso', icon: 'sports_tennis' },
   finalizado: { label: 'Finalizado', icon: 'flag' },
@@ -40,8 +53,18 @@ const estadoBadges = {
 const estadoDe = (t) =>
   t.estado !== 'cancelado' && toDateKey(t.fecha_fin) < todayKey() ? 'finalizado' : t.estado
 
+// Fase de las inscripciones de un torneo activo: 'proximamente' | 'abiertas' | 'cerradas'
+// (el backend cierra solo las vencidas; esto cubre la página abierta desde antes)
+const faseDe = (t) => {
+  if (estadoDe(t) !== 'activo') return 'cerradas'
+  const hoy = todayKey()
+  if (t.inscripcion_apertura && toDateKey(t.inscripcion_apertura) > hoy) return 'proximamente'
+  if (t.inscripcion_cierre && toDateKey(t.inscripcion_cierre) < hoy) return 'cerradas'
+  return 'abiertas'
+}
+
 function EstadoBadge({ torneo, className = '' }) {
-  const estado = estadoDe(torneo)
+  const estado = faseDe(torneo) === 'proximamente' ? 'proximamente' : estadoDe(torneo)
   const badge = estadoBadges[estado] || estadoBadges.activo
   return (
     <span className={`tournament-state-badge ${estado} ${className}`}>
@@ -100,7 +123,7 @@ function TuEquipo({ reg }) {
 }
 
 function Tournaments() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -110,7 +133,10 @@ function Tournaments() {
   const [registrations, setRegistrations] = useState([])
 
   const [selectedTournament, setSelectedTournament] = useState(null)
-  const [activeTab, setActiveTab] = useState('active')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const pedida = SECCIONES.find(s => s.id === searchParams.get('seccion')) ?? SECCIONES[0]
+  // Sin sesión, las secciones personales caen en "Torneos disponibles"
+  const activeTab = pedida.sesion && !isAuthenticated ? 'disponibles' : pedida.id
   // Torneo abierto desde "Mis inscripciones" (id) y su subpestaña: 'equipo' | 'cuadro'
   const [vistaTorneo, setVistaTorneo] = useState(null)
   const [subTab, setSubTab] = useState('cuadro')
@@ -172,7 +198,7 @@ function Tournaments() {
   }
 
   const cambiarTab = (tab) => {
-    setActiveTab(tab)
+    setSearchParams(tab === 'disponibles' ? {} : { seccion: tab })
     setVistaTorneo(null)
   }
 
@@ -199,7 +225,7 @@ function Tournaments() {
       navigate('/login', { state: { from: location } })
       return
     }
-    if (estadoDe(tournament) !== 'activo') {
+    if (faseDe(tournament) !== 'abiertas') {
       loadTournaments()
       return
     }
@@ -276,29 +302,28 @@ function Tournaments() {
 
       <div className="container tournaments-body">
 
-        {isAuthenticated && (
-          <div className="tournaments-tabs">
+        <nav className="tournaments-tabs" aria-label="Secciones de torneos">
+          {SECCIONES.filter(s => !s.sesion || isAuthenticated).map(s => (
             <button
-              className={`tournaments-tab ${activeTab === 'active' ? 'active' : ''}`}
-              onClick={() => cambiarTab('active')}
+              key={s.id}
+              className={`tournaments-tab ${activeTab === s.id ? 'active' : ''}`}
+              aria-current={activeTab === s.id ? 'page' : undefined}
+              onClick={() => cambiarTab(s.id)}
             >
-              <i className="material-icons">emoji_events</i>
-              Torneos Disponibles
-            </button>
-            <button
-              className={`tournaments-tab ${activeTab === 'mine' ? 'active' : ''}`}
-              onClick={() => cambiarTab('mine')}
-            >
-              <i className="material-icons">how_to_reg</i>
-              Mis Inscripciones
-              {myRegistrations.length > 0 && (
+              <i className="material-icons">{s.icon}</i>
+              {s.label}
+              {s.id === 'inscripciones' && myRegistrations.length > 0 && (
                 <span className="tab-count">{myRegistrations.length}</span>
               )}
             </button>
-          </div>
-        )}
+          ))}
+        </nav>
 
-        {activeTab === 'active' && (
+        {activeTab === 'partidos' && <MisPartidos />}
+
+        {activeTab === 'organiza' && <OrganizaTorneo key={user?.id ?? 'visitante'} onVerTorneos={() => { loadTournaments(); cambiarTab('disponibles') }} />}
+
+        {activeTab === 'disponibles' && (
           loading ? (
             <div className="tournaments-empty">
               <i className="material-icons spinning">refresh</i>
@@ -320,7 +345,7 @@ function Tournaments() {
                 const full = playersLeft(tournament) === 0
                 const registration = registrationFor(tournament._id)
                 const registered = Boolean(registration)
-                const abierto = estadoDe(tournament) === 'activo'
+                const fase = faseDe(tournament)
                 return (
                   <div className="tournament-card" key={tournament._id}>
                     <div className="tournament-img-wrapper">
@@ -354,9 +379,30 @@ function Tournaments() {
                           </span>
                         </div>
                         <div className="tournament-detail">
+                          <i className="material-icons">schedule</i>
+                          <span>
+                            Partidos de {formatHour(tournament.hora_inicio || '08:00')} a {formatHour(tournament.hora_fin || '20:00')}
+                            {tournament.canchas?.length > 0 && ` · ${tournament.canchas.map(c => c.nombre).join(', ')}`}
+                          </span>
+                        </div>
+                        {tournament.inscripcion_apertura && (
+                          <div className="tournament-detail">
+                            <i className="material-icons">how_to_reg</i>
+                            <span>
+                              Inscripciones: {formatDateShort(tournament.inscripcion_apertura)} – {formatDateShort(tournament.inscripcion_cierre)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="tournament-detail">
                           <i className="material-icons">group</i>
                           <span>Hasta {tournament.cupo_maximo_parejas} parejas</span>
                         </div>
+                        {tournament.organizador && (
+                          <div className="tournament-detail">
+                            <i className="material-icons">business</i>
+                            <span>Organiza: {tournament.organizador}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="tournament-spots">
@@ -384,7 +430,12 @@ function Tournaments() {
                           <i className="material-icons">check</i>
                           Ya estás inscrito
                         </button>
-                      ) : !abierto ? (
+                      ) : fase === 'proximamente' ? (
+                        <button className="tournament-btn-full proximamente" disabled>
+                          <i className="material-icons">update</i>
+                          Inscripciones abren el {formatDateShort(tournament.inscripcion_apertura)}
+                        </button>
+                      ) : fase !== 'abiertas' ? (
                         <button className="tournament-btn-full" disabled>
                           <i className="material-icons">lock</i>
                           Inscripciones cerradas
@@ -413,7 +464,7 @@ function Tournaments() {
           )
         )}
 
-        {activeTab === 'mine' && regEnVista && (
+        {activeTab === 'inscripciones' && regEnVista && (
           <div className="tournament-view">
             <button className="tournament-view-back" onClick={() => setVistaTorneo(null)}>
               <i className="material-icons">arrow_back</i>
@@ -462,14 +513,14 @@ function Tournaments() {
           </div>
         )}
 
-        {activeTab === 'mine' && !regEnVista && (
+        {activeTab === 'inscripciones' && !regEnVista && (
           <div className="my-registrations">
             {myRegistrations.length === 0 ? (
               <div className="tournaments-empty">
                 <i className="material-icons">emoji_events</i>
                 <h5>No tienes inscripciones aún</h5>
                 <p>Explora los torneos disponibles y participa</p>
-                <button className="tournament-btn" onClick={() => cambiarTab('active')}>
+                <button className="tournament-btn" onClick={() => cambiarTab('disponibles')}>
                   Ver Torneos
                 </button>
               </div>
@@ -524,7 +575,7 @@ function Tournaments() {
                             </button>
                           )}
                           {/* Cancelar solo mientras las inscripciones siguen abiertas */}
-                          {estadoDe(t) === 'activo' && !reg.inscrito_por_pareja && (
+                          {faseDe(t) === 'abiertas' && !reg.inscrito_por_pareja && (
                             <button
                               className="my-reg-cancel-btn"
                               onClick={() => { setCancelError(''); setCancelTarget(t._id) }}
@@ -573,6 +624,12 @@ function Tournaments() {
                   <span>Fecha</span>
                   <span>{formatDateLong(selectedTournament.fecha_inicio)}</span>
                 </div>
+                {selectedTournament.inscripcion_cierre && (
+                  <div className="payment-summary-row">
+                    <span>Inscripciones hasta</span>
+                    <span>{formatDateLong(selectedTournament.inscripcion_cierre)}</span>
+                  </div>
+                )}
                 <div className="payment-summary-row">
                   <span>Cupos disponibles</span>
                   <span>{spotsLabel(selectedTournament)}</span>

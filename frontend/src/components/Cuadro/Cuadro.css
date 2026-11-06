@@ -2,7 +2,7 @@
 .cuadro-wrap {
   --cuadro-gap: 24px;
   --cuadro-linea: #c5cae9;
-  --cuadro-col: 152px;
+  --cuadro-col: 172px;
 }
 
 .cuadro-scroll {
@@ -293,4 +293,46 @@
 
   .cuadro-deslizar { display: flex; }
   .cuadro-deslizar i { font-size: 1rem; }
+}
+
+/* ─── Horario de cada partido ─── */
+.cuadro-horario {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #00897b;
+  background: #e0f2f1;
+  border-bottom: 1px solid #e0e0e0;
+  border-radius: 10px 10px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cuadro-horario-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.cuadro-horario-texto span,
+.cuadro-horario-texto small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cuadro-horario-texto small {
+  font-size: 0.64rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.cuadro-horario i { font-size: 0.85rem; }
+
+.cuadro-horario.pendiente {
+  color: #888;
+  background: #f5f6fa;
 }

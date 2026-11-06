@@ -32,7 +32,9 @@ Universidad Surcolombiana (USCO)
 **Usuarios**
 - Registro, inicio de sesión (JWT en cookie httpOnly) y recuperación de contraseña.
 - Reserva de canchas con consulta de horarios ocupados y cancelación.
-- Inscripción a torneos, individual o en pareja (`pareja_email`).
+- Inscripción a torneos, individual o en pareja (`pareja_email`), dentro de su periodo de inscripciones (apertura y cierre).
+- Torneos con submenú: Torneos disponibles, Mis inscripciones (equipo y cuadro), Mis partidos (día, hora y cancha de cada partido) y Organiza tu torneo.
+- Empresas u organizadores pueden solicitar un torneo: alquiler de canchas por bloque (días + franja horaria) o convenio de 3, 6 o 12 meses con descuento, con cotización y disponibilidad en vivo.
 - Inscripción a clases y consulta de "Mis clases".
 - Tienda con carrito de compras y pedidos.
 - Perfil con pestañas: reservas, torneos, pedidos y clases.
@@ -43,7 +45,8 @@ Universidad Surcolombiana (USCO)
 - CRUD de canchas, productos, torneos y slides del carrusel.
 - Gestión de reservas, pedidos (cambio de estado) y usuarios (rol / activo).
 - Biblioteca de imágenes (Cloudinary o MongoDB como respaldo).
-- Torneos: cierre de inscripciones, emparejamiento automático, reorganización y exportación a Excel (`.xlsx`).
+- Torneos: periodo de inscripciones (se cierran solas al pasar la fecha de cierre), emparejamiento automático, cuadro de eliminación, horarios de los partidos (automáticos y ajustables), reorganización y exportación a Excel (`.xlsx`).
+- Solicitudes de torneo de empresas: aprobar (crea el torneo y aparta las canchas para reservas) o rechazar con un motivo.
 
 **Seguridad**
 - Contraseñas con `bcryptjs`.
@@ -210,7 +213,8 @@ Base: `http://localhost:5000/api`
 | **Reservas** `/reservas` | `GET /ocupados`, `GET /`, `GET /:id`, `POST /`, `PUT /:id/cancelar`, `DELETE /:id` |
 | **Productos** `/productos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Pedidos** `/pedidos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id/estado`, `PUT /:id/cancelar` |
-| **Torneos** `/torneos` | `GET /`, `GET /:id`, `GET /mis-inscripciones`, `POST /`, `PUT /:id`, `DELETE /:id`, `POST /:id/inscribir`, `DELETE /:id/cancelar-inscripcion`, `PUT /:id/cerrar-inscripciones`, `PUT /:id/reorganizar`, `PUT /:id/participantes/:participanteId`, `GET /:id/exportar` |
+| **Torneos** `/torneos` | `GET /`, `GET /:id`, `GET /mis-inscripciones`, `POST /`, `PUT /:id`, `DELETE /:id`, `POST /:id/inscribir`, `DELETE /:id/cancelar-inscripcion`, `PUT /:id/cerrar-inscripciones`, `PUT /:id/reorganizar`, `PUT /:id/participantes/:participanteId`, `GET /:id/exportar`, `GET /:id/cuadro`, `PUT /:id/partidos/:partidoId`, `PUT /:id/partidos/:partidoId/horario`, `PUT /:id/reprogramar`, `GET /mis-partidos` |
+| **Solicitudes de torneo** `/solicitudes-torneo` | `POST /cotizar`, `POST /`, `GET /mias`, `PUT /:id/cancelar`, `GET /` (admin), `PUT /:id/aprobar` (admin), `PUT /:id/rechazar` (admin) |
 | **Clases** `/clases` | `GET /mis-inscripciones`, `GET /inscripciones`, `POST /inscripciones`, `PUT /inscripciones/:id/cancelar` |
 | **Carrusel** `/carrusel` | `GET /`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Media** `/media` | `GET /`, `GET /:id`, `GET /:id/archivo`, `POST /upload`, `DELETE /:id` |

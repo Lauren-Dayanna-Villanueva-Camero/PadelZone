@@ -6,13 +6,13 @@ import Torneo from '../models/torneo.model.js'
 import Media from '../models/media.model.js'
 import User from '../models/user.model.js'
 import Pedido from '../models/pedido.model.js'
-import { finalizarTorneosVencidos } from '../libs/torneos.js'
+import { actualizarEstadosTorneos } from '../libs/torneos.js'
 
 // GET /api/admin/stats — solo admin
 // Usa countDocuments para no descargar colecciones completas
 export const getStats = async (req, res) => {
   try {
-    await finalizarTorneosVencidos()
+    await actualizarEstadosTorneos()
     const [canchas, reservas, productos, torneos, media, usuarios, pedidos] = await Promise.all([
       Cancha.countDocuments({ activa: true }),
       Reserva.countDocuments({ estado: { $ne: 'cancelada' } }),

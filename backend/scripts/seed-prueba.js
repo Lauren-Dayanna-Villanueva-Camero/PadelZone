@@ -16,6 +16,7 @@ import Producto from '../src/models/producto.model.js'
 import Torneo from '../src/models/torneo.model.js'
 import Participante from '../src/models/participante.model.js'
 import Partido from '../src/models/partido.model.js'
+import SolicitudTorneo from '../src/models/solicitudTorneo.model.js'
 import Reserva from '../src/models/reserva.model.js'
 import Pedido from '../src/models/pedido.model.js'
 import PedidoItem from '../src/models/pedidoItem.model.js'
@@ -101,34 +102,35 @@ const CLASES = [
     grupos: [['10 - 14 años', 'Valentina Salazar', '$160.000 / mes'], ['15 - 21 años', 'Sofía Restrepo', '$180.000 / mes'], ['22 años en adelante', 'Carlos Mendoza', '$200.000 / mes']] }
 ]
 
-// Torneos: participantes por número de usuario.
+// Torneos: participantes por número de usuario. apertura/cierre: días (desde hoy)
+// del periodo de inscripciones; el Navideño aún no abre (sale como "Próximamente").
 // parejas: [a, b] inscritos ambos y declarados mutuamente
 // declaradas: [a, b] solo a se inscribe y declara a b
 const TORNEOS = [
   {
-    nombre: 'Torneo Amateur de Noviembre', tipo_torneo: 'Amateur', inicio: 16, fin: 18, cupo_maximo_parejas: 8, precio_inscripcion: 40000, estado: 'activo',
+    nombre: 'Torneo Amateur de Noviembre', apertura: -5, cierre: 14, tipo_torneo: 'Amateur', inicio: 16, fin: 18, cupo_maximo_parejas: 8, precio_inscripcion: 40000, estado: 'activo',
     parejas: [[6, 7], [8, 9], [10, 11]], declaradas: [[12, 39]], sueltos: [13, 14, 15]
     // 6 de 8 parejas; al cerrar inscripciones queda 1 suelto sin pareja
   },
   {
-    nombre: 'Copa Comunidad PadelZone', tipo_torneo: 'Comunidad', inicio: 9, fin: 10, cupo_maximo_parejas: 4, precio_inscripcion: 20000, estado: 'activo',
+    nombre: 'Copa Comunidad PadelZone', apertura: -10, cierre: 7, tipo_torneo: 'Comunidad', inicio: 9, fin: 10, cupo_maximo_parejas: 4, precio_inscripcion: 20000, estado: 'activo',
     parejas: [], declaradas: [], sueltos: [16, 17, 18, 19, 20, 21]
     // 3 de 4 parejas: una pareja más (con pareja_email) la llena y se cierra sola
   },
   {
-    nombre: 'Open Profesional PadelZone 2026', tipo_torneo: 'Profesional', inicio: -2, fin: 4, cupo_maximo_parejas: 8, precio_inscripcion: 120000, estado: 'en_curso',
+    nombre: 'Open Profesional PadelZone 2026', apertura: -20, cierre: -3, tipo_torneo: 'Profesional', inicio: -2, fin: 4, cupo_maximo_parejas: 8, precio_inscripcion: 120000, estado: 'en_curso',
     parejas: [[1, 2], [23, 24], [25, 26], [27, 28]], declaradas: [], sueltos: [29, 30, 31, 32, 33, 34, 35, 36], organizar: true
   },
   {
-    nombre: 'Liga de Verano 2026', tipo_torneo: 'Amateur', inicio: -89, fin: -87, cupo_maximo_parejas: 6, precio_inscripcion: 35000, estado: 'finalizado',
+    nombre: 'Liga de Verano 2026', apertura: -110, cierre: -91, tipo_torneo: 'Amateur', inicio: -89, fin: -87, cupo_maximo_parejas: 6, precio_inscripcion: 35000, estado: 'finalizado',
     parejas: [[3, 4], [5, 6]], declaradas: [], sueltos: [7, 8, 9, 10, 11, 12, 13, 14], organizar: true
   },
   {
-    nombre: 'Torneo Relámpago Halloween', tipo_torneo: 'Comunidad', inicio: 2, fin: 2, cupo_maximo_parejas: 8, precio_inscripcion: 15000, estado: 'cancelado',
+    nombre: 'Torneo Relámpago Halloween', apertura: -10, cierre: 1, tipo_torneo: 'Comunidad', inicio: 2, fin: 2, cupo_maximo_parejas: 8, precio_inscripcion: 15000, estado: 'cancelado',
     parejas: [], declaradas: [], sueltos: [37, 38, 3, 4]
   },
   {
-    nombre: 'Gran Torneo Navideño', tipo_torneo: 'Profesional', inicio: 44, fin: 46, cupo_maximo_parejas: 16, precio_inscripcion: 80000, estado: 'activo',
+    nombre: 'Gran Torneo Navideño', apertura: 5, cierre: 40, tipo_torneo: 'Profesional', inicio: 44, fin: 46, cupo_maximo_parejas: 16, precio_inscripcion: 80000, estado: 'activo',
     parejas: [], declaradas: [], sueltos: []
   }
 ]
@@ -191,6 +193,7 @@ const reset = async () => {
   await Pedido.deleteMany({ _id: { $in: pedidos.map(p => p._id) } })
   await Reserva.deleteMany({ $or: [{ usuario_id: { $in: ids } }, { cancha_id: { $in: canchas.map(c => c._id) } }] })
   await Participante.deleteMany({ $or: [{ usuario_id: { $in: ids } }, { torneo_id: { $in: torneos.map(t => t._id) } }] })
+  await SolicitudTorneo.deleteMany({ solicitante_id: { $in: ids } })
   await InscripcionClase.deleteMany({ usuario_id: { $in: ids } })
   await Partido.deleteMany({ torneo_id: { $in: torneos.map(t => t._id) } })
   await Torneo.deleteMany({ _id: { $in: torneos.map(t => t._id) } })
@@ -278,7 +281,9 @@ const seed = async () => {
       fecha_fin: fechaUTC(diaKey(t.fin)),
       cupo_maximo_parejas: t.cupo_maximo_parejas,
       precio_inscripcion: t.precio_inscripcion,
-      estado: t.estado
+      estado: t.estado,
+      inscripcion_apertura: fechaUTC(diaKey(t.apertura)),
+      inscripcion_cierre: fechaUTC(diaKey(t.cierre))
     })
     resumen.torneos++
 
@@ -300,6 +305,31 @@ const seed = async () => {
       resumen.participantes++
     }
     if (t.organizar) await organizarEquipos(torneo._id)
+  }
+
+  // Solicitud de torneo de una empresa, pendiente de aprobar en el panel de admin
+  const cancha4 = await Cancha.findOne({ nombre: 'Cancha 4' })
+  if (cancha4) {
+    await SolicitudTorneo.create({
+      solicitante_id: u(5)._id,
+      empresa: { nombre: 'Huila Tech S.A.S.', nit: '901234567-8', contacto: 'usuario5 Prueba', telefono: '3101234567', email: emailDe(5) },
+      nombre_torneo: 'Copa Empresarial Huila Tech',
+      tipo_torneo: 'Comunidad',
+      descripcion: 'Torneo de integración para los empleados de la empresa.',
+      modalidad: 'bloque',
+      fecha_inicio: fechaUTC(diaKey(25)),
+      fecha_fin: fechaUTC(diaKey(26)),
+      hora_inicio: '08:00',
+      hora_fin: '14:00',
+      duracion_partido_min: 90,
+      canchas: [cancha4._id],
+      cupo_maximo_parejas: 8,
+      precio_inscripcion: 0,
+      inscripcion_apertura: fechaUTC(diaKey(1)),
+      inscripcion_cierre: fechaUTC(diaKey(20)),
+      costo: { dias: 2, horas_por_dia: 6, horas_cancha: 12, valor_hora: cancha4.precio_por_hora, subtotal: cancha4.precio_por_hora * 12, descuento_pct: 0, descuento: 0, total: cancha4.precio_por_hora * 12 }
+    })
+    resumen.solicitudes = 1
   }
 
   // Reservas: pasadas, futuras y algunas canceladas, sin solapes

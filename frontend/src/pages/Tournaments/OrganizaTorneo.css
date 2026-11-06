@@ -1,0 +1,399 @@
+/* Pestaña "Organiza tu torneo" (mismos colores que Tournaments.css) */
+.organiza-torneo {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.org-muted { color: #888; font-size: 0.88rem; margin: 0; }
+
+/* Introducción y modalidades */
+.org-intro {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(1, 2, 49, 0.07);
+}
+
+.org-intro h4 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #010231;
+  margin: 0 0 8px;
+}
+
+.org-intro-texto p { color: #555; margin: 0 0 18px; }
+
+.org-modalidades {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.org-modalidad {
+  border: 1.5px solid #e0e0e0;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.org-modalidad.destacada { border-color: #00897b; background: #f1faf9; }
+.org-modalidad > i { font-size: 1.8rem; color: #00897b; }
+
+.org-modalidad h6 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #010231;
+  margin: 6px 0;
+}
+
+.org-modalidad p { font-size: 0.88rem; color: #555; margin: 0; }
+
+.org-nota {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  color: #555;
+  background: #f5f6fa;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 16px 0;
+}
+
+.org-nota i { color: #1565c0; font-size: 1.1rem; }
+
+.org-pasos {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 24px;
+  font-size: 0.88rem;
+  color: #555;
+}
+
+.org-pasos li { list-style: decimal; }
+
+/* Formulario y cotización. Los inputs llevan browser-default para que
+   Materialize no les ponga su subrayado y ancho propios */
+.org-form .tournament-form-field input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  color: #333;
+  font-family: inherit;
+}
+
+.org-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+.org-form {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(1, 2, 49, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.org-form fieldset {
+  border: none;
+  margin: 0;
+  padding: 0 0 18px;
+  border-bottom: 1px solid #eee;
+}
+
+.org-form legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #010231;
+  margin-bottom: 12px;
+}
+
+.org-form legend i { color: #00897b; }
+
+.org-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.org-full { grid-column: 1 / -1; }
+
+.org-select,
+.org-textarea {
+  width: 100%;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  color: #333;
+  background: #fff;
+  outline: none;
+  font-family: inherit;
+}
+
+.org-textarea { resize: vertical; min-height: 64px; }
+.org-select:focus, .org-textarea:focus { border-color: #010231; }
+
+.org-label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #333;
+  margin: 16px 0 8px;
+}
+
+.org-canchas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.org-cancha,
+.org-opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.org-cancha i { color: #b0bec5; }
+.org-cancha span { display: flex; flex-direction: column; }
+.org-cancha strong, .org-opcion strong { font-size: 0.9rem; color: #010231; }
+.org-cancha small, .org-opcion small { font-size: 0.76rem; color: #777; }
+
+.org-cancha:hover, .org-opcion:hover { border-color: #00897b; }
+.org-cancha.elegida, .org-opcion.elegida { border-color: #00897b; background: #e0f2f1; }
+.org-cancha.elegida i { color: #00897b; }
+
+.org-opciones {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.org-opciones.meses { grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
+
+.org-opcion {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.org-opcion i { color: #00897b; }
+
+.org-aside { position: sticky; top: 90px; }
+
+.org-cotizacion {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(1, 2, 49, 0.07);
+  transition: opacity 0.2s ease;
+}
+
+.org-cotizacion.actualizando { opacity: 0.6; }
+
+.org-cotizacion h6 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #010231;
+  margin: 0 0 12px;
+}
+
+.org-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86rem;
+  color: #555;
+  padding: 5px 0;
+}
+
+.org-fila.descuento { color: #00897b; font-weight: 600; }
+
+.org-fila.total {
+  border-top: 1.5px solid #eee;
+  margin-top: 6px;
+  padding-top: 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #010231;
+}
+
+.org-capacidad {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.82rem;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-top: 12px;
+}
+
+.org-capacidad i { font-size: 1.05rem; }
+.org-capacidad.ok { background: #e0f2f1; color: #00695c; }
+.org-capacidad.falta { background: #fff4e5; color: #b26a00; }
+
+.org-conflictos {
+  margin-top: 12px;
+  background: #ffebee;
+  color: #c62828;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+}
+
+.org-conflictos strong { display: flex; align-items: center; gap: 6px; }
+.org-conflictos i { font-size: 1.05rem; }
+.org-conflictos ul, .org-conflictos-lista { margin: 6px 0 0; padding-left: 18px; }
+.org-conflictos li, .org-conflictos-lista li { list-style: disc; }
+
+.org-conflictos-lista {
+  font-size: 0.82rem;
+  color: #c62828;
+  margin: -10px 0 0;
+}
+
+.org-cotizacion-error {
+  display: flex;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #c62828;
+  margin: 0;
+}
+
+.org-alerta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+}
+
+.org-alerta.ok { background: #e0f2f1; color: #00695c; }
+
+/* Mis solicitudes */
+.org-mis-solicitudes h5 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #010231;
+  margin: 0 0 12px;
+}
+
+.org-solicitud {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(1, 2, 49, 0.07);
+}
+
+.org-solicitud-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #010231;
+}
+
+.org-solicitud-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
+  font-size: 0.84rem;
+  color: #555;
+}
+
+.org-solicitud-datos span { display: inline-flex; align-items: center; gap: 4px; }
+.org-solicitud-datos i { font-size: 1rem; color: #00897b; }
+
+.org-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.org-estado i { font-size: 0.95rem; }
+.org-estado.pendiente { background: #fff4e5; color: #b26a00; }
+.org-estado.aprobada { background: #e0f2f1; color: #00695c; }
+.org-estado.rechazada { background: #ffebee; color: #c62828; }
+.org-estado.cancelada { background: #eceff1; color: #607d8b; }
+
+.org-respuesta {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  color: #555;
+  background: #f5f6fa;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: 10px 0 0;
+}
+
+.org-respuesta i { font-size: 1rem; color: #1565c0; }
+.org-respuesta.ok i { color: #00897b; }
+
+.org-solicitud-acciones { display: flex; gap: 8px; margin-top: 10px; }
+.org-solicitud-acciones:empty { display: none; }
+
+.org-btn-sec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1.5px solid #010231;
+  color: #010231;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.org-btn-sec i { font-size: 1rem; }
+.org-btn-sec:hover { background: #010231; color: #fff; }
+.org-btn-sec.peligro { border-color: #c62828; color: #c62828; }
+.org-btn-sec.peligro:hover { background: #c62828; color: #fff; }
+
+.org-login-btn {
+  width: auto;
+  display: inline-flex;
+  padding: 12px 24px;
+  text-decoration: none;
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .org-layout { grid-template-columns: 1fr; }
+  .org-aside { position: static; order: -1; }
+}
+
+@media (max-width: 600px) {
+  .org-intro, .org-form { padding: 16px; }
+  .org-modalidades, .org-pasos, .org-grid, .org-opciones { grid-template-columns: 1fr; }
+  .org-opciones.meses { grid-template-columns: repeat(3, 1fr); }
+}

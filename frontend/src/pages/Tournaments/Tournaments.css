@@ -1115,3 +1115,14 @@
 @media (min-width: 1201px) {
   .tournaments-body:has(.tournament-view) { width: min(94%, 1320px); }
 }
+
+/* Submenú de Torneos: con cuatro secciones las pestañas pasan a otra línea si no caben */
+.tournaments-tabs { flex-wrap: wrap; max-width: 100%; }
+
+@media (max-width: 600px) {
+  .tournaments-tab { flex: 1 1 45%; justify-content: center; padding: 10px 8px; font-size: 0.84rem; }
+}
+
+/* Torneo cuyas inscripciones aún no abren */
+.tournament-state-badge.proximamente { background: #e3f2fd; color: #1565c0; }
+.tournament-btn-full.proximamente { background: #e3f2fd; color: #1565c0; }

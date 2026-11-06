@@ -1,6 +1,8 @@
 import Torneo from '../models/torneo.model.js'
 import Participante from '../models/participante.model.js'
 import Partido from '../models/partido.model.js'
+import Cancha from '../models/cancha.model.js'
+import { diasEntre, turnosDelDia } from './horarios.js'
 
 // Las fechas de los torneos se guardan como medianoche UTC del día elegido
 // ('2026-10-22' → 2026-10-22T00:00:00Z). Para comparar se toma el día local
@@ -21,6 +23,33 @@ export const finalizarTorneosVencidos = () =>
     { estado: { $in: ['activo', 'en_curso'] }, fecha_fin: { $lt: inicioDeHoy() } },
     { estado: 'finalizado' }
   )
+
+// Fase de inscripciones de un torneo: 'proximamente' (aún no abren),
+// 'abiertas' o 'cerradas'. El día de apertura y el de cierre cuentan completos.
+export const faseInscripcion = (torneo, hoy = inicioDeHoy()) => {
+  if (torneo.estado !== 'activo' || torneoTerminado(torneo)) return 'cerradas'
+  if (torneo.inscripcion_apertura && hoy < new Date(torneo.inscripcion_apertura)) return 'proximamente'
+  if (torneo.inscripcion_cierre && hoy > new Date(torneo.inscripcion_cierre)) return 'cerradas'
+  return 'abiertas'
+}
+
+// Cierra (empareja y sortea el cuadro) los torneos activos cuya fecha de cierre
+// de inscripciones ya pasó. Igual que finalizarTorneosVencidos, se llama antes de
+// leer o inscribir en vez de usar un proceso programado.
+export const cerrarInscripcionesVencidas = async () => {
+  const vencidos = await Torneo.find({
+    estado: 'activo',
+    inscripcion_cierre: { $ne: null, $lt: inicioDeHoy() }
+  }).select('_id')
+  for (const t of vencidos) await cerrarInscripciones(t._id)
+}
+
+// Pone al día los estados: primero finaliza los vencidos (no tiene sentido
+// emparejar un torneo que ya terminó) y luego cierra inscripciones vencidas
+export const actualizarEstadosTorneos = async () => {
+  await finalizarTorneosVencidos()
+  await cerrarInscripcionesVencidas()
+}
 
 // ─── Emparejamiento ─────────────────────────────────
 
@@ -263,18 +292,99 @@ export const generarCuadro = async (torneoId) => {
     }
   }
 
+  const torneo = await Torneo.findById(torneoId)
+  await programarPartidos(torneo, [...partidos.values()])
+
   return Partido.insertMany([...partidos.values()])
 }
+
+// ─── Horarios de los partidos ───────────────────────
+
+// Asigna fecha, hora y cancha a cada partido que se juega (los BYE de la primera
+// ronda no se juegan). Los turnos salen de los días del torneo, su franja diaria
+// y la duración de un partido; en cada turno se juega un partido por cancha.
+// Las rondas se reparten en los días (la primera el primer día y la final el
+// último) y una ronda empieza siempre en un turno posterior a la anterior.
+// Si no alcanzan los turnos, los partidos que sobran quedan sin horario.
+export const programarPartidos = async (torneo, partidos) => {
+  for (const p of partidos) Object.assign(p, { fecha: null, hora_inicio: null, hora_fin: null, cancha_id: null })
+  if (!torneo || !partidos.length) return partidos
+
+  const canchas = torneo.canchas?.length
+    ? torneo.canchas.map(c => c._id ?? c)
+    : (await Cancha.find({ activa: true }).sort({ nombre: 1 }).select('_id')).map(c => c._id)
+  const porTurno = Math.max(canchas.length, 1)
+
+  const dias = diasEntre(torneo.fecha_inicio, torneo.fecha_fin)
+  const turnos = turnosDelDia(torneo.hora_inicio || '08:00', torneo.hora_fin || '20:00', torneo.duracion_partido_min || 90)
+  const filas = dias.flatMap((fecha, dia) => turnos.map(t => ({ dia, fecha, ...t })))
+  if (!filas.length) return partidos
+
+  const totalRondas = Math.max(...partidos.map(p => p.ronda))
+  let fila = 0
+  for (let ronda = 1; ronda <= totalRondas; ronda++) {
+    const diaIdeal = totalRondas > 1 ? Math.round((ronda - 1) * (dias.length - 1) / (totalRondas - 1)) : 0
+    const primeraDelDia = filas.findIndex(f => f.dia === diaIdeal)
+    fila = Math.max(fila, primeraDelDia)
+
+    const porJugar = partidos
+      .filter(p => p.ronda === ronda && !(ronda === 1 && (p.equipo_a == null || p.equipo_b == null)))
+      .sort((a, b) => a.posicion - b.posicion)
+
+    let usados = 0
+    for (const p of porJugar) {
+      const turno = filas[fila + Math.floor(usados / porTurno)]
+      if (!turno) break
+      p.fecha = turno.fecha
+      p.hora_inicio = turno.hora_inicio
+      p.hora_fin = turno.hora_fin
+      p.cancha_id = canchas[usados % porTurno] ?? null
+      usados++
+    }
+    fila += Math.ceil(usados / porTurno)
+  }
+  return partidos
+}
+
+// Vuelve a calcular los horarios de un cuadro ya armado sin tocar los resultados
+// (por ejemplo, si el admin cambió los días, la franja o las canchas del torneo)
+export const reprogramarPartidos = async (torneoId) => {
+  const torneo = await Torneo.findById(torneoId)
+  const partidos = await Partido.find({ torneo_id: torneoId })
+  if (!partidos.length) return 0
+  const planos = partidos.map(p => ({ _id: p._id, ronda: p.ronda, posicion: p.posicion, equipo_a: p.equipo_a, equipo_b: p.equipo_b }))
+  await programarPartidos(torneo, planos)
+  await Partido.bulkWrite(planos.map(p => ({
+    updateOne: {
+      filter: { _id: p._id },
+      update: { fecha: p.fecha, hora_inicio: p.hora_inicio, hora_fin: p.hora_fin, cancha_id: p.cancha_id }
+    }
+  })))
+  return partidos.length
+}
+
+const horarioDe = (p) => p.fecha
+  ? {
+      fecha: p.fecha,
+      hora_inicio: p.hora_inicio,
+      hora_fin: p.hora_fin,
+      cancha: p.cancha_id ? { _id: p.cancha_id._id ?? p.cancha_id, nombre: p.cancha_id.nombre ?? 'Cancha' } : null
+    }
+  : null
 
 // Cuadro listo para mostrar: solo números de pareja y nombres de los jugadores
 // (sin email, teléfono ni pagos). mi_equipo es la pareja de quien consulta.
 export const obtenerCuadro = async (torneoId, usuarioId) => {
-  let partidos = await Partido.find({ torneo_id: torneoId }).sort({ ronda: 1, posicion: 1 })
+  const buscar = () => Partido.find({ torneo_id: torneoId })
+    .populate('cancha_id', 'nombre')
+    .sort({ ronda: 1, posicion: 1 })
+  let partidos = await buscar()
   const { equipos } = await obtenerOrganizacion(torneoId)
 
   // Torneos organizados antes de que existiera el cuadro
   if (!partidos.length && equipos.length >= 2) {
-    partidos = await generarCuadro(torneoId)
+    await generarCuadro(torneoId)
+    partidos = await buscar()
   }
 
   const nombres = new Map(equipos.map(e => [e.equipo, e.integrantes.map(i => i.nombre)]))
@@ -298,7 +408,8 @@ export const obtenerCuadro = async (torneoId, usuarioId) => {
         posicion: p.posicion,
         equipo_a: casilla(p.equipo_a, ronda),
         equipo_b: casilla(p.equipo_b, ronda),
-        ganador: p.ganador
+        ganador: p.ganador,
+        horario: horarioDe(p)
       }))
     })
   }
@@ -309,4 +420,46 @@ export const obtenerCuadro = async (torneoId, usuarioId) => {
     campeon: final?.ganador != null ? casilla(final.ganador, totalRondas) : null,
     mi_equipo: mio?.equipo ?? null
   }
+}
+
+// Partidos de un usuario en todos sus torneos organizados, en orden cronológico
+// (los que no tienen horario van al final). No incluye los BYE.
+export const obtenerMisPartidos = async (usuarioId) => {
+  const registros = await Participante.find({
+    $or: [{ usuario_id: usuarioId }, { pareja_usuario_id: usuarioId }],
+    equipo: { $ne: null }
+  }).populate('torneo_id', 'nombre estado tipo_torneo')
+
+  const torneos = new Map()
+  for (const r of registros) {
+    if (r.torneo_id && ['en_curso', 'finalizado'].includes(r.torneo_id.estado)) {
+      torneos.set(r.torneo_id._id.toString(), r.torneo_id)
+    }
+  }
+
+  const lista = []
+  for (const torneo of torneos.values()) {
+    const { rondas, mi_equipo: mio } = await obtenerCuadro(torneo._id, usuarioId)
+    if (mio == null) continue
+    for (const ronda of rondas) {
+      for (const p of ronda.partidos) {
+        const lado = p.equipo_a?.equipo === mio ? 'equipo_a' : p.equipo_b?.equipo === mio ? 'equipo_b' : null
+        if (!lado) continue
+        const rival = lado === 'equipo_a' ? p.equipo_b : p.equipo_a
+        if (rival?.bye) continue
+        lista.push({
+          partido_id: p._id,
+          torneo: { _id: torneo._id, nombre: torneo.nombre, estado: torneo.estado, tipo_torneo: torneo.tipo_torneo },
+          ronda: ronda.nombre,
+          horario: p.horario,
+          mi_equipo: mio,
+          rival: rival ? { equipo: rival.equipo, nombres: rival.nombres } : null,
+          resultado: p.ganador == null ? 'pendiente' : p.ganador === mio ? 'ganado' : 'perdido'
+        })
+      }
+    }
+  }
+
+  const orden = (x) => x.horario ? `${new Date(x.horario.fecha).toISOString().slice(0, 10)} ${x.horario.hora_inicio}` : '9999'
+  return lista.sort((a, b) => orden(a).localeCompare(orden(b)))
 }

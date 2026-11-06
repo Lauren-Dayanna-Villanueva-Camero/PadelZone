@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getCuadroTorneoApi, setGanadorPartidoApi, getErrorMessage } from '../../services/api'
+import { textoHorario, formatDateShort, formatHour } from '../../utils/helpers'
 import './Cuadro.css'
 
 // Casilla de un partido: pareja, BYE (solo primera ronda) o por definir (null)
@@ -36,9 +37,29 @@ function Casilla({ casilla, partido, miEquipo, puedeElegir, onElegir, guardando 
   )
 }
 
+// Día, hora y cancha del partido. Un partido contra BYE no se juega.
+// Dos líneas fijas (día y hora / cancha) para que todas las casillas midan lo mismo
+// y las líneas del cuadro queden alineadas
+function Horario({ partido }) {
+  const bye = partido.equipo_a?.bye || partido.equipo_b?.bye
+  const h = partido.horario
+  const linea1 = bye ? 'Pasa directo' : h ? `${formatDateShort(h.fecha)} · ${formatHour(h.hora_inicio)}` : 'Horario por definir'
+  const linea2 = bye ? 'Sin partido (BYE)' : h ? h.cancha?.nombre ?? 'Cancha por definir' : 'Se publicará pronto'
+  return (
+    <div className={`cuadro-horario ${!bye && h ? '' : 'pendiente'}`} title={bye ? linea1 : textoHorario(h)}>
+      <i className="material-icons">{bye ? 'fast_forward' : 'schedule'}</i>
+      <span className="cuadro-horario-texto">
+        <span>{linea1}</span>
+        <small>{linea2}</small>
+      </span>
+    </div>
+  )
+}
+
 function Partido({ partido, ...props }) {
   return (
     <div className="cuadro-partido">
+      <Horario partido={partido} />
       <Casilla casilla={partido.equipo_a} partido={partido} {...props} />
       <Casilla casilla={partido.equipo_b} partido={partido} {...props} />
     </div>

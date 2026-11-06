@@ -38,6 +38,29 @@ const partidoSchema = new mongoose.Schema({
   ganador: {
     type: Number,
     default: null
+  },
+
+  // Horario: se programa solo al armar el cuadro y el admin lo puede ajustar.
+  // null = por definir (por ejemplo, si no alcanzan los turnos del torneo)
+  fecha: {
+    type: Date,
+    default: null
+  },
+
+  hora_inicio: {
+    type: String,
+    default: null
+  },
+
+  hora_fin: {
+    type: String,
+    default: null
+  },
+
+  cancha_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Cancha',
+    default: null
   }
 }, {
   timestamps: true

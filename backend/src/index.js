@@ -18,6 +18,7 @@ import carruselRoutes from './routes/carrusel.routes.js'
 import mediaRoutes from './routes/media.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import clasesRoutes from './routes/clases.routes.js'
+import solicitudesRoutes from './routes/solicitudes.routes.js'
 
 // Sin estas variables el servidor no puede funcionar de forma segura
 if (!MONGODB_URI || !JWT_SECRET) {
@@ -46,6 +47,7 @@ app.use('/api/carrusel', carruselRoutes)
 app.use('/api/media', mediaRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/clases', clasesRoutes)
+app.use('/api/solicitudes-torneo', solicitudesRoutes)
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'Ruta no encontrada' })

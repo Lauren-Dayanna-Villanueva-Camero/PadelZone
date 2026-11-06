@@ -164,3 +164,112 @@
   color: #010231;
   margin-bottom: 10px;
 }
+
+/* Vistas de la página: torneos / solicitudes de empresas */
+.tor-vistas { margin-bottom: 20px; }
+
+.tor-tab-count {
+  background: #c62828;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 1px 7px;
+  margin-left: 4px;
+}
+
+.tor-insc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.tor-canchas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+/* Horarios de los partidos */
+.tor-horarios-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tor-horarios-head p { margin: 0; font-size: 0.85rem; }
+
+.tor-horarios-ronda h6 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #00897b;
+  margin: 16px 0 8px;
+}
+
+.tor-horario-actual { white-space: nowrap; }
+
+.tor-horario-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.tor-horario-campos input,
+.tor-horario-campos select {
+  border: 1px solid #d5d8e3 !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
+  height: auto !important;
+  margin: 0 !important;
+  font-size: 0.85rem;
+  background: #fff;
+  width: auto !important;
+  box-shadow: none !important;
+}
+
+.tor-horario-error { color: #c62828; font-size: 0.78rem; margin-top: 4px; }
+
+/* Solicitudes de empresas */
+.sol-cruce {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #c62828;
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+.sol-cruce i { font-size: 0.95rem; }
+
+.sol-datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.sol-dato {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.88rem;
+}
+
+.sol-dato > i { color: #00897b; font-size: 1.2rem; }
+.sol-dato .adm-muted { font-size: 0.76rem; }
+
+.sol-conflictos ul { margin: 4px 0 0; padding-left: 18px; }
+.sol-conflictos li { list-style: disc; font-size: 0.82rem; }
+.sol-acciones { margin-top: 12px; }
+
+@media (max-width: 700px) {
+  .sol-datos { grid-template-columns: 1fr; }
+}

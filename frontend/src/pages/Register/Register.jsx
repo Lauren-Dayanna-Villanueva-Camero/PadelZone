@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { getErrorMessage } from '../../services/api'
+import GoogleButton from '../../components/GoogleButton/GoogleButton'
 import './Register.css'
 import '../../styles/auth.css'
 
@@ -128,13 +129,23 @@ function Register() {
       {/* Contenido */}
       <div className="container register-body">
         <div className="register-card">
-          <form onSubmit={handleSubmit} className="register-form" role="form" aria-labelledby="register-title">
-            {error && (
-              <div className="register-error" role="alert" aria-live="polite">
-                <i className="material-icons" aria-hidden="true">error_outline</i>
-                <span>{error}</span>
+          {error && (
+            <div className="register-error" role="alert" aria-live="polite">
+              <i className="material-icons" aria-hidden="true">error_outline</i>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <>
+              <GoogleButton texto="signup_with" onError={setError} />
+              <div className="auth-divider">
+                <span>o con tu email</span>
               </div>
-            )}
+            </>
+          )}
+
+          <form onSubmit={handleSubmit} className="register-form" role="form" aria-labelledby="register-title">
 
             {/* Name */}
             <div className="register-field">

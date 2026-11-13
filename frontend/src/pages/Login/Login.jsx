@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { getErrorMessage } from '../../services/api'
 import ForgotPassword from '../../components/ForgotPassword/ForgotPassword'
+import GoogleButton from '../../components/GoogleButton/GoogleButton'
 import './Login.css'
 import '../../styles/auth.css'
 
@@ -89,13 +90,23 @@ function Login() {
 
       <div className="container login-body">
         <div className="login-card">
-          <form onSubmit={handleSubmit} className="login-form" role="form" aria-labelledby="login-title">
-            {error && (
-              <div className="login-error" role="alert" aria-live="polite">
-                <i className="material-icons" aria-hidden="true">error_outline</i>
-                <span>{error}</span>
+          {error && (
+            <div className="login-error" role="alert" aria-live="polite">
+              <i className="material-icons" aria-hidden="true">error_outline</i>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <>
+              <GoogleButton texto="signin_with" onError={setError} />
+              <div className="auth-divider">
+                <span>o con tu email</span>
               </div>
-            )}
+            </>
+          )}
+
+          <form onSubmit={handleSubmit} className="login-form" role="form" aria-labelledby="login-title">
 
             <div className="login-field">
               <label htmlFor="email">Email</label>

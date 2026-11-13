@@ -22,6 +22,8 @@ export const getErrorMessage = (error, fallback = 'Ocurrió un error. Inténtalo
 // ─── AUTH ───────────────────────────────────────────
 export const registerApi = (data) => api.post('/auth/register', data)
 export const loginApi = (data) => api.post('/auth/login', data)
+// `credential` es el ID token que entrega el botón de Google
+export const googleLoginApi = (credential) => api.post('/auth/google', { credential })
 export const logoutApi = () => api.post('/auth/logout')
 export const getProfileApi = () => api.get('/auth/profile')
 export const updateProfileApi = (data) => api.put('/auth/profile', data)

@@ -7,10 +7,12 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
 
+  // Google no siempre entrega el apellido: en esas cuentas es opcional
   apellido: {
     type: String,
-    required: true,
-    trim: true
+    required: function () { return !this.google_id },
+    trim: true,
+    default: ''
   },
 
   email: {
@@ -21,9 +23,19 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
 
+  // Las cuentas creadas con Google no tienen contraseña hasta que el usuario
+  // elija una con "¿Olvidaste tu contraseña?"
   password_hash: {
     type: String,
-    required: true
+    required: function () { return !this.google_id }
+  },
+
+  // Identificador de la cuenta de Google vinculada (campo `sub` del ID token).
+  // No lleva select: false porque las validaciones de arriba lo necesitan al guardar
+  google_id: {
+    type: String,
+    unique: true,
+    sparse: true
   },
 
   telefono: {

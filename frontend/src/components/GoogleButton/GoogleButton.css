@@ -1,0 +1,24 @@
+/* Contenedor del botón de Google: centrado y con altura fija para que la
+   página no salte mientras Google dibuja el botón dentro de su iframe */
+.google-btn-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.google-btn-wrap.is-loading > div:first-child {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.google-btn-cargando {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.google-btn-cargando i { font-size: 1rem; }

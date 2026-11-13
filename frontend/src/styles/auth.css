@@ -141,3 +141,27 @@
 .register-form [type='checkbox']:checked + span:not(.lever)::before {
   border-color: transparent #00897b #00897b transparent;
 }
+
+/* Separador entre "Continuar con Google" y el formulario con email */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 20px;
+  color: #999;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.auth-divider span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}

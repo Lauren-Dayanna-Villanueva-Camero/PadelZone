@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AuthContext } from './contexts'
 import api, {
   loginApi,
+  googleLoginApi,
   registerApi,
   logoutApi,
   getProfileApi,
@@ -15,7 +16,10 @@ const normalizeUser = (u) => u && ({
   apellido: u.apellido,
   email: u.email,
   telefono: u.telefono,
-  rol: u.rol
+  rol: u.rol,
+  // false en cuentas creadas con Google que aún no eligieron contraseña
+  tiene_password: u.tiene_password ?? true,
+  google: Boolean(u.google)
 })
 
 export const AuthProvider = ({ children }) => {
@@ -56,6 +60,14 @@ export const AuthProvider = ({ children }) => {
     return loggedUser
   }, [])
 
+  // Inicia sesión (o crea la cuenta) con el ID token del botón de Google
+  const loginWithGoogle = useCallback(async (credential) => {
+    const res = await googleLoginApi(credential)
+    const loggedUser = normalizeUser(res.data.user)
+    setUser(loggedUser)
+    return loggedUser
+  }, [])
+
   const register = useCallback(async (data) => {
     const res = await registerApi(data)
     const newUser = normalizeUser(res.data.user)
@@ -81,13 +93,14 @@ export const AuthProvider = ({ children }) => {
   const value = useMemo(() => ({
     user,
     login,
+    loginWithGoogle,
     register,
     logout,
     updateProfile,
     isAuthenticated: !!user,
     isAdmin: user?.rol === 'admin',
     loading
-  }), [user, login, register, logout, updateProfile, loading])
+  }), [user, login, loginWithGoogle, register, logout, updateProfile, loading])
 
   return (
     <AuthContext.Provider value={value}>

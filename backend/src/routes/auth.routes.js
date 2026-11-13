@@ -6,7 +6,8 @@ import {
   profile,
   updateProfile,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  googleLogin
 } from '../controllers/auth.controller.js'
 import { authRequired } from '../middlewares/auth.middleware.js'
 import { rateLimit } from '../middlewares/rateLimit.middleware.js'
@@ -27,6 +28,7 @@ const accountLimiter = rateLimit({
 
 router.post('/register', accountLimiter, register)
 router.post('/login', loginLimiter, login)
+router.post('/google', loginLimiter, googleLogin)
 router.post('/logout', logout)
 router.post('/forgot-password', accountLimiter, forgotPassword)
 router.post('/reset-password', loginLimiter, resetPassword)

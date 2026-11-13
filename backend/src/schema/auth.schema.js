@@ -39,3 +39,7 @@ export const loginSchema = z.object({
   password: z.string()
     .min(1, 'La contraseña es requerida')
 })
+// ID token (JWT) que entrega el botón de Google Identity Services
+export const googleLoginSchema = z.object({
+  credential: z.string().min(20, 'Credencial de Google inválida').max(4096, 'Credencial de Google inválida')
+})

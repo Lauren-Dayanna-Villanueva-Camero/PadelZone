@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser'
 import multer from 'multer'
 import { connectDB } from './db.js'
 import { checkCloudinary, MAX_SIZE_CLOUDINARY } from './libs/cloudinary.js'
+import { checkMailer } from './libs/mailer.js'
 import authRoutes from './routes/auth.routes.js'
 import { PORT, MONGODB_URI, JWT_SECRET, CLIENT_URL } from './config.js'
 
@@ -82,4 +83,5 @@ app.use((err, req, res, next) => {
 
 await connectDB()
 await checkCloudinary()
+await checkMailer()
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`))

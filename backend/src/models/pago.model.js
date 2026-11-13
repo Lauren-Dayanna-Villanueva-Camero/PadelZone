@@ -6,6 +6,7 @@ import mongoose from 'mongoose'
 // - pedido  → Pedido
 // - torneo  → Participante (la inscripción del jugador)
 // - clase   → InscripcionClase
+// - multa   → Multa (por no asistir a una reserva)
 // El monto siempre lo calcula el servidor (libs/pagos.js → obtenerCargo).
 const pagoSchema = new mongoose.Schema({
   usuario_id: {
@@ -16,7 +17,7 @@ const pagoSchema = new mongoose.Schema({
 
   concepto: {
     type: String,
-    enum: ['reserva', 'pedido', 'torneo', 'clase'],
+    enum: ['reserva', 'pedido', 'torneo', 'clase', 'multa'],
     required: true
   },
 

@@ -22,6 +22,7 @@ import clasesRoutes from './routes/clases.routes.js'
 import solicitudesRoutes from './routes/solicitudes.routes.js'
 import pagosRoutes from './routes/pagos.routes.js'
 import calendarioRoutes from './routes/calendario.routes.js'
+import multasRoutes from './routes/multas.routes.js'
 import { vencerReservasPendientes, wompiActivo } from './libs/pagos.js'
 
 // Sin estas variables el servidor no puede funcionar de forma segura
@@ -54,6 +55,7 @@ app.use('/api/clases', clasesRoutes)
 app.use('/api/solicitudes-torneo', solicitudesRoutes)
 app.use('/api/pagos', pagosRoutes)
 app.use('/api/calendario', calendarioRoutes)
+app.use('/api/multas', multasRoutes)
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'Ruta no encontrada' })

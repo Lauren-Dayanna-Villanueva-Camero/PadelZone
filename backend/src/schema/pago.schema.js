@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { objectId } from './common.js'
 
 export const iniciarPagoSchema = z.object({
-  concepto: z.enum(['reserva', 'pedido', 'torneo', 'clase'], { error: 'Concepto de pago inválido' }),
+  concepto: z.enum(['reserva', 'pedido', 'torneo', 'clase', 'multa'], { error: 'Concepto de pago inválido' }),
   id: objectId('Identificador inválido'),
   // Con Wompi el método de pago en línea se elige en la pasarela: basta con 'tarjeta'
   metodo: z.enum(['tarjeta', 'pse', 'nequi', 'efectivo'], { error: 'Elige un método de pago' })

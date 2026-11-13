@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
+import Avatar from '../../../components/Avatar/Avatar'
 import './AdminSidebar.css'
 
 const links = [
@@ -7,6 +8,7 @@ const links = [
   { to: '/admin/calendario', label: 'Calendario', icon: 'calendar_month' },
   { to: '/admin/reservas', label: 'Reservas', icon: 'event_available' },
   { to: '/admin/pagos', label: 'Pagos', icon: 'payments' },
+  { to: '/admin/multas', label: 'Multas', icon: 'gavel' },
   { to: '/admin/pedidos', label: 'Pedidos', icon: 'receipt_long' },
   { to: '/admin/canchas', label: 'Canchas', icon: 'sports_tennis' },
   { to: '/admin/productos', label: 'Productos', icon: 'shopping_bag' },
@@ -43,7 +45,12 @@ function AdminSidebar() {
       </nav>
 
       <div className="admin-sidebar-footer">
-        {user && <p className="admin-sidebar-user">{user.nombre} {user.apellido}</p>}
+        {user && (
+          <p className="admin-sidebar-user">
+            <Avatar persona={user} size={28} />
+            <span>{user.nombre} {user.apellido}</span>
+          </p>
+        )}
         <NavLink to="/" className="admin-nav-link">
           <i className="material-icons">arrow_back</i>
           <span>Volver al sitio</span>

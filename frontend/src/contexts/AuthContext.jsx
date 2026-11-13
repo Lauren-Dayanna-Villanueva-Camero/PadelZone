@@ -6,7 +6,9 @@ import api, {
   registerApi,
   logoutApi,
   getProfileApi,
-  updateProfileApi
+  updateProfileApi,
+  subirFotoApi,
+  quitarFotoApi
 } from '../services/api'
 
 // Unifica la forma del usuario: login/register devuelven `id`, profile devuelve `_id`
@@ -16,6 +18,7 @@ const normalizeUser = (u) => u && ({
   apellido: u.apellido,
   email: u.email,
   telefono: u.telefono,
+  foto_url: u.foto_url ?? null,
   rol: u.rol,
   // false en cuentas creadas con Google que aún no eligieron contraseña
   tiene_password: u.tiene_password ?? true,
@@ -90,6 +93,21 @@ export const AuthProvider = ({ children }) => {
     return updated
   }, [])
 
+  // Sube (o reemplaza) la foto de perfil; `archivo` ya viene recortada y comprimida
+  const subirFoto = useCallback(async (archivo) => {
+    const res = await subirFotoApi(archivo)
+    const updated = normalizeUser(res.data.user)
+    setUser(updated)
+    return updated
+  }, [])
+
+  const quitarFoto = useCallback(async () => {
+    const res = await quitarFotoApi()
+    const updated = normalizeUser(res.data.user)
+    setUser(updated)
+    return updated
+  }, [])
+
   const value = useMemo(() => ({
     user,
     login,
@@ -97,10 +115,12 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
+    subirFoto,
+    quitarFoto,
     isAuthenticated: !!user,
     isAdmin: user?.rol === 'admin',
     loading
-  }), [user, login, loginWithGoogle, register, logout, updateProfile, loading])
+  }), [user, login, loginWithGoogle, register, logout, updateProfile, subirFoto, quitarFoto, loading])
 
   return (
     <AuthContext.Provider value={value}>

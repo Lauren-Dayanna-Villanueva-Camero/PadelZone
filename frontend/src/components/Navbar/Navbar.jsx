@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import Avatar from '../Avatar/Avatar'
 import './Navbar.css'
 
 function Navbar() {
@@ -106,7 +107,7 @@ function Navbar() {
             {isAuthenticated ? (
               <div className="nav-user">
                 <Link to="/perfil" className="nav-user-name">
-                  <i className="material-icons left">person</i>
+                  <Avatar persona={user} size={30} className="nav-user-avatar" />
                   {user?.nombre || 'Usuario'}
                 </Link>
                 <button className="btn-logout waves-effect" onClick={handleLogout}>
@@ -153,7 +154,7 @@ function Navbar() {
           {isAdmin && <Link to="/admin"><i className="material-icons">admin_panel_settings</i>Admin</Link>}
           {isAuthenticated ? (
             <>
-              <Link to="/perfil"><i className="material-icons">person</i>{user?.nombre || 'Mi perfil'}</Link>
+              <Link to="/perfil"><Avatar persona={user} size={24} className="nav-mobile-avatar" />{user?.nombre || 'Mi perfil'}</Link>
               <button className="nav-mobile-logout" onClick={handleLogout}>
                 <i className="material-icons">logout</i>Cerrar Sesión
               </button>

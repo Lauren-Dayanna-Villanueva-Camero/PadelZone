@@ -43,14 +43,17 @@ Universidad Surcolombiana (USCO)
 - Las reservas quedan apartadas 15 minutos mientras se paga; si no se paga (ni se elige pagar en la sede) se liberan solas.
 - Calendario visual (mes, semana y lista) con mis reservas, partidos, torneos y clases.
 - Perfil con pestañas: reservas, torneos, pedidos, pagos (por pagar e historial), calendario y datos.
+- Foto de perfil: se sube desde el encabezado del perfil (JPG, PNG o WEBP). El navegador la recorta al cuadrado del centro y la reduce a 400×400 antes de subirla. Se ve en el perfil, en la barra de navegación y en el panel del admin; si no hay foto se muestran las iniciales.
+- Multas por inasistencia: si alguien reserva para pagar en la sede y no llega, el admin lo marca y se le cobra una multa (por defecto el 50 % del precio de la reserva). Mientras tenga una multa sin pagar no puede hacer reservas nuevas; la paga desde el perfil, en línea o en la sede. Con 2 o más inasistencias en 180 días, sus reservas solo se pueden pagar en línea.
 - Página de clima en Neiva (API pública Open‑Meteo).
 
 **Administración (`/admin`)**
-- Dashboard con estadísticas de los últimos 7, 30 o 90 días comparadas con el periodo anterior: ingresos, reservas, ocupación de canchas y usuarios nuevos; gráficos de ingresos y reservas por día, mapa de calor de los horarios más ocupados, ocupación por cancha, ingresos por concepto y método de pago, productos más vendidos y la agenda de hoy. Una lista "Para atender" lleva directo a lo pendiente (efectivo por confirmar, reembolsos, pedidos, solicitudes de empresas). Los gráficos son SVG propios (sin librerías), con tooltip, navegación con flechas y vista en tabla.
+- Dashboard con estadísticas de los últimos 7, 30 o 90 días comparadas con el periodo anterior: ingresos, reservas, ocupación de canchas y usuarios nuevos; gráficos de ingresos y reservas por día, mapa de calor de los horarios más ocupados, ocupación por cancha, ingresos por concepto y método de pago, productos más vendidos y la agenda de hoy. Una lista "Para atender" lleva directo a lo pendiente (efectivo por confirmar, reembolsos, multas sin pagar, pedidos, solicitudes de empresas). Los gráficos son SVG propios (sin librerías), con tooltip, navegación con flechas y vista en tabla.
 - CRUD de canchas, productos, torneos y slides del carrusel.
 - Gestión de reservas, pedidos (cambio de estado) y usuarios (rol / activo).
 - Calendario de todo el club (reservas, partidos y torneos) con filtro por cancha. Las reservas sin pagar se ven con borde punteado.
 - Pagos: recaudado, efectivo por confirmar, pagos por reembolsar (pagados pero cancelados) y totales por método; filtros, confirmación de pagos en efectivo y anulación/reembolso.
+- Multas: en Reservas, el botón **No asistió** (reservas confirmadas, sin pagar y que ya empezaron) cobra la multa y anula el pago en efectivo que quedó registrado; si fue un error, **Sí asistió** la quita. En la sección Multas se ven las pendientes, pagadas y perdonadas, y se puede perdonar una con un motivo.
 - Biblioteca de imágenes (Cloudinary o MongoDB como respaldo).
 - Torneos:
   - Periodo de inscripciones; se cierran solas al pasar la fecha de cierre o al llenarse el cupo, y el admin también puede cerrarlas a mano.
@@ -179,6 +182,9 @@ Los archivos `.env` **no se suben al repositorio**. Usa los `.env.example` como 
 | `WOMPI_PUBLIC_KEY` | No | Llave pública de Wompi (`pub_test_...` o `pub_prod_...`). Sin ella los pagos en línea son simulados |
 | `WOMPI_INTEGRITY_SECRET` | No | Secreto de integridad de Wompi (firma de cada pago) |
 | `WOMPI_EVENTS_SECRET` | No | Secreto de eventos de Wompi (verifica el webhook) |
+| `MULTA_PORCENTAJE` | No | Multa por no asistir, en % del precio de la reserva (por defecto `50`) |
+| `MULTA_LIMITE_INASISTENCIAS` | No | Inasistencias a partir de las cuales las reservas solo se pagan en línea (por defecto `2`) |
+| `MULTA_DIAS_HISTORIAL` | No | Días hacia atrás en que se cuentan esas inasistencias (por defecto `180`) |
 
 Límite de imágenes: 10 MB en Cloudinary y 5 MB en MongoDB. Al arrancar se verifica Cloudinary; si falla se usa MongoDB.
 
@@ -281,6 +287,9 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 - `usuario1`: en el Open Profesional ganó su partido de cuartos y tiene la semifinal pendiente ("Mis partidos" y cuadro). También está inscrito en el Torneo Express.
 - `usuario12`: declaró como pareja a `usuario39`, que no tiene inscripción propia; `usuario39` ve el torneo como "Te inscribió tu pareja".
 - `usuario16` … `usuario21`: inscritos sin pareja en la Copa Comunidad.
+- `usuario7`: tiene una multa pendiente por no asistir, así que no puede reservar hasta pagarla.
+- `usuario12`: pagó dos multas por inasistencias recientes, así que sus reservas solo se pueden pagar en línea.
+- `usuario20`: tiene una multa perdonada por el admin.
 
 **Historial para el dashboard:** unos 6 meses de datos, con el club creciendo poco a poco, para que tanto el periodo de 90 días como el anterior tengan con qué compararse:
 
@@ -309,7 +318,7 @@ La tienda conserva sus casos de prueba: el seed nunca deja un producto con menos
 | `/reservar` | Reservar cancha | Usuario autenticado |
 | `/perfil` | Perfil del usuario (`?tab=reservations`, `tournaments`, `orders`, `pagos`, `calendario`, `data`) | Usuario autenticado |
 | `/pagos/resultado` | Resultado de un pago al volver de Wompi | Usuario autenticado |
-| `/admin/*` | Panel: calendario, reservas, pagos, pedidos, canchas, productos, torneos (con solicitudes de empresas), carrusel, media y usuarios | Administrador |
+| `/admin/*` | Panel: calendario, reservas, pagos, multas, pedidos, canchas, productos, torneos (con solicitudes de empresas), carrusel, media y usuarios | Administrador |
 
 ---
 
@@ -319,9 +328,10 @@ Base: `http://localhost:5000/api`
 
 | Recurso | Endpoints |
 |---|---|
-| **Auth** `/auth` | `POST /register`, `POST /login`, `POST /google`, `POST /logout`, `POST /forgot-password`, `POST /reset-password`, `GET /profile`, `PUT /profile` |
+| **Auth** `/auth` | `POST /register`, `POST /login`, `POST /google`, `POST /logout`, `POST /forgot-password`, `POST /reset-password`, `GET /profile`, `PUT /profile`, `PUT /profile/foto` (campo `imagen`), `DELETE /profile/foto` |
 | **Canchas** `/canchas` | `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` |
-| **Reservas** `/reservas` | `GET /ocupados`, `GET /`, `GET /:id`, `POST /`, `PUT /:id/cancelar`, `DELETE /:id` |
+| **Reservas** `/reservas` | `GET /ocupados`, `GET /`, `GET /:id`, `POST /`, `PUT /:id/cancelar`, `DELETE /:id`, `PUT /:id/no-asistio` y `DELETE /:id/no-asistio` (admin: marcar o quitar la inasistencia) |
+| **Multas** `/multas` | `GET /mias`, `GET /` (admin; `?estado=pendiente\|pagada\|anulada`), `PUT /:id/anular` (admin) |
 | **Productos** `/productos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Pedidos** `/pedidos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id/estado`, `PUT /:id/cancelar` |
 | **Torneos** `/torneos` | `GET /`, `GET /:id`, `GET /mis-inscripciones`, `POST /`, `PUT /:id`, `DELETE /:id`, `POST /:id/inscribir`, `DELETE /:id/cancelar-inscripcion`, `PUT /:id/cerrar-inscripciones`, `PUT /:id/reorganizar`, `PUT /:id/participantes/:participanteId`, `GET /:id/exportar`, `GET /:id/cuadro`, `PUT /:id/partidos/:partidoId`, `PUT /:id/partidos/:partidoId/horario`, `PUT /:id/reprogramar`, `GET /mis-partidos`, `PUT /:id/codigo` (regenerar código, admin) |

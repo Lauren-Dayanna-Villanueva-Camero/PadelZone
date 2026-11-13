@@ -19,3 +19,15 @@ export const WOMPI_PUBLIC_KEY = (process.env.WOMPI_PUBLIC_KEY || '').trim()
 export const WOMPI_INTEGRITY_SECRET = (process.env.WOMPI_INTEGRITY_SECRET || '').trim()
 // Secreto de eventos: valida el webhook POST /api/pagos/wompi/eventos
 export const WOMPI_EVENTS_SECRET = (process.env.WOMPI_EVENTS_SECRET || '').trim()
+
+// Inasistencias a reservas que se iban a pagar en la sede:
+// - la multa es este porcentaje del precio de la reserva
+// - con esta cantidad de inasistencias en los últimos MULTA_DIAS_HISTORIAL días,
+//   las reservas nuevas ya no se pueden pagar en la sede (solo en línea)
+const entero = (valor, porDefecto, min, max) => {
+  const n = Number.parseInt(valor, 10)
+  return Number.isFinite(n) && n >= min && n <= max ? n : porDefecto
+}
+export const MULTA_PORCENTAJE = entero(process.env.MULTA_PORCENTAJE, 50, 1, 100)
+export const MULTA_LIMITE_INASISTENCIAS = entero(process.env.MULTA_LIMITE_INASISTENCIAS, 2, 1, 50)
+export const MULTA_DIAS_HISTORIAL = entero(process.env.MULTA_DIAS_HISTORIAL, 180, 1, 3650)

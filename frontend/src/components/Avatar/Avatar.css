@@ -1,0 +1,19 @@
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e8ecf6;
+  vertical-align: middle;
+}
+
+.avatar--iniciales {
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  user-select: none;
+}

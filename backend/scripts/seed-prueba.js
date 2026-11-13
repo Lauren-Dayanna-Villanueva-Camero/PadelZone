@@ -32,6 +32,7 @@ import PedidoItem from '../src/models/pedidoItem.model.js'
 import InscripcionClase from '../src/models/inscripcionClase.model.js'
 import Carrusel from '../src/models/carrusel.model.js'
 import Pago from '../src/models/pago.model.js'
+import Multa from '../src/models/multa.model.js'
 import { precioClase } from '../src/libs/clases.js'
 import { checkCloudinary, cloudinaryEnabled, uploadBuffer, destroyImage } from '../src/libs/cloudinary.js'
 import { organizarEquipos, llaveSiguiente } from '../src/libs/torneos.js'
@@ -363,6 +364,7 @@ const reset = async () => {
   await SolicitudTorneo.deleteMany({ solicitante_id: { $in: ids } })
   await InscripcionClase.deleteMany({ usuario_id: { $in: ids } })
   await Pago.deleteMany({ usuario_id: { $in: ids } })
+  await Multa.deleteMany({ usuario_id: { $in: ids } })
   await Partido.deleteMany({ torneo_id: { $in: torneos.map(t => t._id) } })
   await Torneo.deleteMany({ _id: { $in: torneos.map(t => t._id) } })
   await Cancha.deleteMany({ _id: { $in: canchas.map(c => c._id) } })
@@ -853,6 +855,60 @@ const seed = async () => {
       await crearPago({ concepto: 'clase', id: ins._id, usuario: ins.usuario_id, monto: ins.monto, descripcion: `Clase ${ins.clase_nombre} · ${ins.grupo} (mensualidad)`, aprobado: true, fecha: ins.fecha_inscripcion })
       await InscripcionClase.updateOne({ _id: ins._id }, { pago_confirmado: true })
     }
+  }
+
+  // Inasistencias: reservas para pagar en la sede a las que no llegaron.
+  // usuario7 → multa pendiente (no puede reservar); usuario12 → dos multas
+  // pagadas (solo puede pagar reservas en línea); usuario20 → multa perdonada
+  const casosMulta = [
+    { n: 7, hace: 2, estado: 'pendiente' },
+    { n: 12, hace: 40, estado: 'pagada' },
+    { n: 12, hace: 9, estado: 'pagada' },
+    { n: 20, hace: 15, estado: 'anulada' }
+  ]
+  resumen.multas = 0
+  for (const caso of casosMulta) {
+    const usuario = u(caso.n)
+    const fecha = fechaUTC(diaKey(-caso.hace))
+    let reserva = null
+    let nombreCancha = ''
+    for (let intentos = 0; intentos < 40 && !reserva; intentos++) {
+      const cancha = elegir(canchas)
+      const hIni = entre(8, 20)
+      const ini = `${pad(hIni)}:00`
+      const fin = `${pad(hIni + 1)}:00`
+      if (choca(cancha._id, fecha, ini, fin)) continue
+      if ((await bloqueosDe(cancha._id, fecha)).some(b => b.hora_inicio < fin && b.hora_fin > ini)) continue
+      reserva = await Reserva.create({
+        usuario_id: usuario._id, cancha_id: cancha._id, fecha, hora_inicio: ini, hora_fin: fin,
+        precio: cancha.precio_por_hora, estado: 'confirmada', no_asistio: true
+      })
+      nombreCancha = cancha.nombre
+      ocupadas.push(reserva)
+    }
+    if (!reserva) continue
+    const creada = aLas(fechaUTC(diaKey(-caso.hace - 1)), 18, 0)
+    await fijarFecha(Reserva, reserva._id, 'fecha_creacion', creada)
+    const descripcion = `Reserva ${nombreCancha} · ${diaKey(-caso.hace)} · ${reserva.hora_inicio}–${reserva.hora_fin}`
+    await crearPago({ concepto: 'reserva', id: reserva._id, usuario: usuario._id, monto: reserva.precio, descripcion, estado: 'anulado', metodo: 'efectivo', fecha: creada, mensaje: 'No asistió a la reserva' })
+
+    const marcada = aLas(fecha, Number(reserva.hora_fin.slice(0, 2)), 15)
+    const multa = await Multa.create({
+      usuario_id: usuario._id,
+      reserva_id: reserva._id,
+      monto: Math.round(reserva.precio * 0.5),
+      descripcion: `Multa por no asistir · ${nombreCancha} · ${diaKey(-caso.hace)} · ${reserva.hora_inicio}–${reserva.hora_fin}`,
+      estado: caso.estado,
+      motivo_anulacion: caso.estado === 'anulada' ? 'Avisó que estaba enfermo' : '',
+      pagada_en: caso.estado === 'pagada' ? minutosDespues(marcada, 60 * 24) : null,
+      registrada_por: admin._id
+    })
+    await fijarFecha(Multa, multa._id, 'createdAt', marcada)
+    await Reserva.updateOne({ _id: reserva._id }, { multa_id: multa._id })
+    if (caso.estado === 'pagada') {
+      await crearPago({ concepto: 'multa', id: multa._id, usuario: usuario._id, monto: multa.monto, descripcion: multa.descripcion, aprobado: true, fecha: minutosDespues(marcada, 60 * 24) })
+    }
+    resumen.multas++
   }
 
   console.log('Creado:', resumen)

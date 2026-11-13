@@ -816,3 +816,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Multa pendiente / solo pago en línea */
+.res-error--multa { align-items: flex-start; }
+.res-error--multa a { color: #b71c1c; font-weight: 700; text-decoration: underline; }
+.res-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #eef3fb;
+  color: #1e3c72;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 0.9rem;
+}

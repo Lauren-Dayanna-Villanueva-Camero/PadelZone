@@ -18,7 +18,8 @@ export const CONCEPTOS = {
   reserva: { label: 'Reserva', icon: 'event_available' },
   pedido: { label: 'Tienda', icon: 'shopping_bag' },
   torneo: { label: 'Torneo', icon: 'emoji_events' },
-  clase: { label: 'Clase', icon: 'school' }
+  clase: { label: 'Clase', icon: 'school' },
+  multa: { label: 'Multa', icon: 'gavel' }
 }
 
 export const ESTADOS_PAGO = {

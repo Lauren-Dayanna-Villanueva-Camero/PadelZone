@@ -6,6 +6,7 @@ import User from '../models/user.model.js'
 import Pago from '../models/pago.model.js'
 import Partido from '../models/partido.model.js'
 import SolicitudTorneo from '../models/solicitudTorneo.model.js'
+import Multa from '../models/multa.model.js'
 import { aMinutos } from '../libs/horarios.js'
 import { idsCancelados, vencerReservasPendientes, CONCEPTOS } from '../libs/pagos.js'
 
@@ -174,6 +175,11 @@ export const getEstadisticas = async (req, res) => {
       porReembolsar += (await idsCancelados(c, ids)).size
     }
 
+    const multasPendientes = await Multa.aggregate([
+      { $match: { estado: 'pendiente' } },
+      { $group: { _id: null, cantidad: { $sum: 1 }, monto: { $sum: '$monto' } } }
+    ])
+
     return res.status(200).json({
       periodo: { dias, desde, hasta: hoy, anterior: { desde: antDesde, hasta: antHasta } },
       kpis: {
@@ -204,7 +210,8 @@ export const getEstadisticas = async (req, res) => {
         reembolsos: porReembolsar,
         pedidos: pedidosPendientes,
         solicitudes: solicitudesPendientes,
-        reservas_esperando_pago: reservasEsperando
+        reservas_esperando_pago: reservasEsperando,
+        multas: { cantidad: multasPendientes[0]?.cantidad ?? 0, monto: multasPendientes[0]?.monto ?? 0 }
       },
       hoy: {
         dia: hoy,

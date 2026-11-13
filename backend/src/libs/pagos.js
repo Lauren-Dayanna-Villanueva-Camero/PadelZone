@@ -4,9 +4,11 @@ import Reserva from '../models/reserva.model.js'
 import Pedido from '../models/pedido.model.js'
 import Participante from '../models/participante.model.js'
 import InscripcionClase from '../models/inscripcionClase.model.js'
+import Multa from '../models/multa.model.js'
 import { WOMPI_PUBLIC_KEY, WOMPI_INTEGRITY_SECRET, WOMPI_EVENTS_SECRET, CLIENT_URL } from '../config.js'
 import { bloqueosDeTorneos, diaKey } from './horarios.js'
 import { precioClase } from './clases.js'
+import { estadoMultas } from './multas.js'
 
 // Pagos de PadelZone. Con las llaves de Wompi configuradas se cobra de verdad
 // (Web Checkout de Wompi: tarjeta, PSE, Nequi...); sin ellas los pagos en línea
@@ -14,7 +16,7 @@ import { precioClase } from './clases.js'
 // "Efectivo" (pagar en la sede o contraentrega) queda pendiente hasta que el admin lo confirma.
 
 export const MINUTOS_PARA_PAGAR = 15
-export const CONCEPTOS = ['reserva', 'pedido', 'torneo', 'clase']
+export const CONCEPTOS = ['reserva', 'pedido', 'torneo', 'clase', 'multa']
 export const METODOS_EN_LINEA = ['tarjeta', 'pse', 'nequi']
 
 // Bancos del PSE simulado: los dos primeros imitan los del sandbox de Wompi
@@ -34,7 +36,7 @@ const wompiApi = () => (WOMPI_PUBLIC_KEY.startsWith('pub_prod_')
 const sha256 = (texto) => crypto.createHash('sha256').update(texto).digest('hex')
 const mismoId = (a, b) => String(a?._id ?? a) === String(b?._id ?? b)
 
-const PREFIJOS = { reserva: 'RES', pedido: 'PED', torneo: 'TOR', clase: 'CLA' }
+const PREFIJOS = { reserva: 'RES', pedido: 'PED', torneo: 'TOR', clase: 'CLA', multa: 'MUL' }
 const nuevaReferencia = (concepto) =>
   `PZ-${PREFIJOS[concepto]}-${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(2).toString('hex').toUpperCase()}`
 
@@ -134,6 +136,19 @@ export const cargarEntidad = async (concepto, id) => {
     }
   }
 
+  if (concepto === 'multa') {
+    const m = await Multa.findById(id)
+    if (!m) return null
+    return {
+      usuario_id: m.usuario_id,
+      monto: m.monto,
+      descripcion: m.descripcion,
+      pagado: m.estado === 'pagada',
+      cancelado: m.estado === 'anulada',
+      problema: m.estado === 'anulada' ? 'La multa fue anulada' : null
+    }
+  }
+
   return null
 }
 
@@ -173,6 +188,11 @@ const marcarPagado = async ({ concepto, referencia_id: id }, pagado) => {
   }
   if (concepto === 'torneo') return Participante.updateOne({ _id: id }, { pago_confirmado: pagado })
   if (concepto === 'clase') return InscripcionClase.updateOne({ _id: id }, { pago_confirmado: pagado })
+  if (concepto === 'multa') {
+    return pagado
+      ? Multa.updateOne({ _id: id, estado: 'pendiente' }, { estado: 'pagada', pagada_en: new Date() })
+      : Multa.updateOne({ _id: id, estado: 'pagada' }, { estado: 'pendiente', pagada_en: null })
+  }
 }
 
 // Cambia el estado de un pago y aplica sus efectos. Es atómico: si dos avisos
@@ -234,6 +254,10 @@ export const iniciarPago = async ({ concepto, id, metodo }, usuario) => {
   }
 
   if (metodo === 'efectivo') {
+    // Con varias inasistencias recientes, las reservas solo se pagan en línea
+    if (concepto === 'reserva' && (await estadoMultas(usuario._id)).solo_en_linea) {
+      throw errorPago(400, 'Por tus inasistencias recientes, tus reservas solo se pueden pagar en línea')
+    }
     // Una reserva que se paga en la sede queda confirmada (ya no vence)
     if (concepto === 'reserva') {
       await Reserva.updateOne({ _id: id, estado: 'pendiente' }, { estado: 'confirmada', expira_en: null })
@@ -434,6 +458,8 @@ export const idsCancelados = async (concepto, ids) => {
     for (const p of await Pedido.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(p._id), p.estado === 'cancelado')
   } else if (concepto === 'clase') {
     for (const c of await InscripcionClase.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(c._id), c.estado === 'cancelada')
+  } else if (concepto === 'multa') {
+    for (const m of await Multa.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(m._id), m.estado === 'anulada')
   } else {
     const parts = await Participante.find({ _id: { $in: ids } }).populate('torneo_id', 'estado').select('torneo_id')
     for (const p of parts) existentes.set(String(p._id), !p.torneo_id || p.torneo_id.estado === 'cancelado')

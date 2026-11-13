@@ -115,6 +115,14 @@ function ParaAtender({ pendientes }) {
       to: '/admin/pagos?ver=reembolsos'
     },
     {
+      n: pendientes.multas?.cantidad ?? 0,
+      texto: pendientes.multas?.cantidad === 1 ? 'multa sin pagar' : 'multas sin pagar',
+      extra: pendientes.multas?.cantidad ? `${fmtCOP(pendientes.multas.monto)} por inasistencias` : '',
+      icon: 'gavel',
+      nivel: 'warning',
+      to: '/admin/multas'
+    },
+    {
       n: pendientes.pedidos,
       texto: pendientes.pedidos === 1 ? 'pedido pendiente' : 'pedidos pendientes',
       extra: 'Por despachar o cobrar',

@@ -5,6 +5,7 @@ import {
   getCanchasApi,
   getHorariosOcupadosApi,
   createReservaApi,
+  getMisMultasApi,
   getErrorMessage
 } from '../../services/api'
 import { getCourtImage, formatPrice, formatDateLong, todayKey } from '../../utils/helpers'
@@ -43,6 +44,19 @@ function Reservations() {
   // Reserva recién creada esperando el pago, y cómo terminó: 'pagada' | 'sede' | 'sin_pagar'
   const [porPagar, setPorPagar] = useState(null)
   const [resultadoPago, setResultadoPago] = useState('')
+
+  // Multas por no asistir: con una pendiente no se puede reservar, y con varias
+  // inasistencias recientes la reserva solo se paga en línea
+  const [multas, setMultas] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    getMisMultasApi()
+      .then(res => { if (!cancelled) setMultas(res.data) })
+      .catch(() => { /* si falla, el backend igual valida al reservar */ })
+    return () => { cancelled = true }
+  }, [])
+  const bloqueadoPorMulta = (multas?.pendientes ?? 0) > 0
+  const soloEnLinea = Boolean(multas?.solo_en_linea)
 
   // Canchas desde el backend
   useEffect(() => {
@@ -318,6 +332,23 @@ function Reservations() {
               </p>
             </div>
 
+            {bloqueadoPorMulta && (
+              <div className="res-error res-error--multa" role="alert">
+                <i className="material-icons">gavel</i>
+                <span>
+                  Tienes {multas.pendientes === 1 ? 'una multa pendiente' : `${multas.pendientes} multas pendientes`} de {formatPrice(multas.total_pendiente)} por
+                  no asistir a una reserva. Págala para volver a reservar.{' '}
+                  <Link to="/perfil?tab=pagos">Pagar ahora</Link>
+                </span>
+              </div>
+            )}
+            {soloEnLinea && !bloqueadoPorMulta && (
+              <div className="res-info">
+                <i className="material-icons">info</i>
+                <span>Por tus inasistencias recientes, esta reserva solo se puede pagar en línea.</span>
+              </div>
+            )}
+
             {submitError && (
               <div className="res-error" role="alert">
                 <i className="material-icons">error_outline</i>
@@ -329,7 +360,7 @@ function Reservations() {
               type="button"
               className="res-btn-confirm"
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || bloqueadoPorMulta}
             >
               <i className={`material-icons ${submitting ? 'spinning' : ''}`}>
                 {submitting ? 'refresh' : 'check'}
@@ -376,6 +407,7 @@ function Reservations() {
                 <li>Llega 10 minutos antes de tu reserva</li>
                 <li>Equipamiento básico incluido</li>
                 <li>Mínimo 1 hora de reserva</li>
+                <li>Si pagas en la sede y no llegas, se cobra una multa{multas?.reglas ? ` del ${multas.reglas.porcentaje}% del valor` : ''}</li>
               </ul>
             </div>
           </div>
@@ -442,8 +474,10 @@ function Reservations() {
             ['Fecha', formatDateLong(porPagar.fecha)],
             ['Horario', `${porPagar.hora_inicio} – ${porPagar.hora_fin}`]
           ]}
-          efectivo="Pagar en la sede"
-          aviso="Tu horario queda apartado 15 minutos mientras pagas. Si eliges pagar en la sede, queda confirmado de inmediato."
+          efectivo={soloEnLinea ? null : 'Pagar en la sede'}
+          aviso={soloEnLinea
+            ? 'Tu horario queda apartado 15 minutos mientras pagas en línea.'
+            : 'Tu horario queda apartado 15 minutos mientras pagas. Si eliges pagar en la sede, queda confirmado de inmediato.'}
           onTerminar={(pago) => terminarPago(pago.estado === 'aprobado' ? 'pagada' : 'sede')}
           onCerrar={() => terminarPago('sin_pagar')}
         />

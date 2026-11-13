@@ -7,6 +7,7 @@ import {
   getMisInscripcionesApi,
   getPedidosApi,
   getMisPagosApi,
+  getMisMultasApi,
   getErrorMessage
 } from '../../services/api'
 import {
@@ -19,6 +20,7 @@ import {
 } from '../../utils/helpers'
 import PagoModal from '../../components/Pago/PagoModal'
 import Calendario from '../../components/Calendario/Calendario'
+import FotoPerfil from './FotoPerfil'
 import { CONCEPTOS, ESTADOS_PAGO, textoMetodo, formatFechaHora } from '../../components/Pago/pagoUtils'
 import './Profile.css'
 
@@ -115,6 +117,15 @@ function Profile() {
   const torneos = useLista(getMisInscripcionesApi, 'No se pudieron cargar tus torneos', null, recargas)
   const pedidos = useLista(getPedidosApi, 'No se pudieron cargar tus pedidos', userId, recargas)
   const pagos = useLista(getMisPagosApi, 'No se pudieron cargar tus pagos', null, recargas)
+  // Multas por no asistir a reservas que se iban a pagar en la sede
+  const [multas, setMultas] = useState(null)
+  useEffect(() => {
+    let cancelado = false
+    getMisMultasApi()
+      .then(res => { if (!cancelado) setMultas(res.data) })
+      .catch(() => { /* sin multas no se muestra nada */ })
+    return () => { cancelado = true }
+  }, [recargas])
 
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({ nombre: '', apellido: '', telefono: '' })
@@ -175,11 +186,6 @@ function Profile() {
 
   const fullName = [user?.nombre, user?.apellido].filter(Boolean).join(' ')
 
-  const getInitials = (name) => {
-    if (!name) return 'U'
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-  }
-
   const today = todayKey()
   const active = reservations.filter(r => r.estado !== 'cancelada')
   const upcoming = active.filter(r => toDateKey(r.fecha) >= today)
@@ -198,7 +204,7 @@ function Profile() {
     .map(p => `${p.concepto}:${p.referencia_id}`))
 
   const cobroReserva = (r) => ({
-    concepto: 'reserva', id: r._id, monto: r.precio, efectivo: 'Pagar en la sede',
+    concepto: 'reserva', id: r._id, monto: r.precio, efectivo: multas?.solo_en_linea ? null : 'Pagar en la sede',
     titulo: `Reserva ${r.cancha_id?.nombre ?? ''}`,
     resumen: [['Fecha', formatDateLong(r.fecha)], ['Horario', `${r.hora_inicio} – ${r.hora_fin}`]]
   })
@@ -213,10 +219,18 @@ function Profile() {
     resumen: [['Fecha del torneo', formatDateLong(reg.torneo_id.fecha_inicio)]]
   })
 
-  const reservaPorPagar = (r) => r.estado !== 'cancelada' && !r.pagada && toDateKey(r.fecha) >= today
+  const cobroMulta = (m) => ({
+    concepto: 'multa', id: m._id, monto: m.monto, efectivo: 'Pagar en la sede',
+    titulo: 'Multa por inasistencia',
+    resumen: [['Detalle', m.descripcion.replace(/^Multa por no asistir · /, '')]]
+  })
+  const multasPendientes = (multas?.multas ?? []).filter(m => m.estado === 'pendiente')
+
+  const reservaPorPagar = (r) => r.estado !== 'cancelada' && !r.pagada && !r.no_asistio && toDateKey(r.fecha) >= today
   const torneoPorPagar = (reg) => !reg.pago_confirmado && !reg.inscrito_por_pareja &&
     reg.torneo_id.precio_inscripcion > 0 && ['activo', 'en_curso'].includes(estadoTorneo(reg.torneo_id))
   const porPagar = [
+    ...multasPendientes.map(m => ({ key: `m${m._id}`, icon: 'gavel', texto: m.descripcion, cobro: cobroMulta(m), multa: true })),
     ...reservations.filter(reservaPorPagar).map(r => ({ key: `r${r._id}`, icon: 'event_available', texto: `Reserva ${r.cancha_id?.nombre ?? ''} · ${toDateKey(r.fecha)} · ${r.hora_inicio}`, cobro: cobroReserva(r), apartada: r.estado === 'pendiente' ? r.expira_en : null })),
     ...pedidos.items.filter(p => p.estado === 'pendiente').map(p => ({ key: `p${p._id}`, icon: 'shopping_bag', texto: `Pedido #${p._id.slice(-6).toUpperCase()}`, cobro: cobroPedido(p) })),
     ...misTorneos.filter(torneoPorPagar).map(reg => ({ key: `t${reg._id}`, icon: 'emoji_events', texto: `Inscripción · ${reg.torneo_id.nombre}`, cobro: cobroTorneo(reg) }))
@@ -234,9 +248,7 @@ function Profile() {
       <div className="profile-header">
         <div className="container">
           <div className="profile-header-content">
-            <div className="profile-avatar">
-              {getInitials(fullName)}
-            </div>
+            <FotoPerfil />
             <div className="profile-header-info">
               <h1>{fullName || 'Usuario'}</h1>
               <p>{user?.email}</p>
@@ -279,6 +291,39 @@ function Profile() {
             </div>
           </div>
         </div>
+
+        {multasPendientes.length > 0 && (
+          <div className="profile-multa-aviso" role="alert">
+            <i className="material-icons">gavel</i>
+            <div>
+              <strong>
+                Tienes {multasPendientes.length === 1 ? 'una multa pendiente' : `${multasPendientes.length} multas pendientes`} de {formatPrice(multas.total_pendiente)}
+              </strong>
+              <span>
+                No llegaste a una reserva que ibas a pagar en la sede y la cancha quedó apartada sin usarse.
+                Mientras no la pagues no puedes hacer reservas nuevas.
+              </span>
+            </div>
+            <button
+              className="pagos-pagar-btn"
+              onClick={() => multasPendientes.length === 1 ? setCobro(cobroMulta(multasPendientes[0])) : setActiveTab('pagos')}
+            >
+              <i className="material-icons">payment</i>
+              Pagar multa
+            </button>
+          </div>
+        )}
+        {multas?.solo_en_linea && multasPendientes.length === 0 && (
+          <div className="profile-multa-aviso profile-multa-aviso--info">
+            <i className="material-icons">info</i>
+            <div>
+              <span>
+                Por tus inasistencias recientes ({multas.inasistencias} en los últimos {multas.reglas.dias_historial} días),
+                tus reservas solo se pueden pagar en línea por ahora.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="profile-tabs">
@@ -476,7 +521,9 @@ function Profile() {
                         <span className="pagos-por-pagar-sub">
                           {item.efectivo
                             ? 'Elegiste pagar en efectivo · también puedes pagar en línea'
-                            : item.apartada
+                            : item.multa
+                              ? 'Mientras no la pagues no puedes hacer reservas nuevas'
+                              : item.apartada
                               ? `Apartada hasta las ${new Date(item.apartada).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}`
                               : 'Pago pendiente'}
                         </span>
@@ -664,7 +711,8 @@ function Profile() {
 function ReservationCard({ res, upcoming, onCancel, onPagar, enSede }) {
   const cancha = res.cancha_id
   const cancelled = res.estado === 'cancelada'
-  const status = cancelled ? 'Cancelada' : res.estado === 'pendiente' ? 'Por pagar' : upcoming ? 'Próxima' : 'Completada'
+  const status = cancelled ? 'Cancelada' : res.no_asistio ? 'No asististe' : res.estado === 'pendiente' ? 'Por pagar' : upcoming ? 'Próxima' : 'Completada'
+  const multa = res.multa_id
 
   return (
     <div className={`res-card ${upcoming ? 'upcoming' : 'past'}`}>
@@ -694,7 +742,19 @@ function ReservationCard({ res, upcoming, onCancel, onPagar, enSede }) {
               {cancha.tipo}
             </p>
           )}
-          {!cancelled && (
+          {res.no_asistio && (
+            <p>
+              <i className="material-icons">gavel</i>
+              <span className={`pago-chip ${multa?.estado === 'pagada' ? 'pagado' : multa?.estado === 'anulada' ? 'neutro' : 'pendiente'}`}>
+                {multa?.estado === 'pagada'
+                  ? `Multa pagada (${formatPrice(multa.monto)})`
+                  : multa?.estado === 'anulada'
+                    ? 'Multa anulada'
+                    : `Multa pendiente${multa ? ` · ${formatPrice(multa.monto)}` : ''}`}
+              </span>
+            </p>
+          )}
+          {!cancelled && !res.no_asistio && (
             <p>
               <i className="material-icons">payments</i>
               {res.pagada

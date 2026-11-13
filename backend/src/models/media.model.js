@@ -17,7 +17,8 @@ const mediaSchema = new mongoose.Schema({
 
   tipo: {
     type: String,
-    enum: ['carrusel', 'cancha', 'producto', 'clase'],
+    // avatar = foto de perfil de un usuario
+    enum: ['carrusel', 'cancha', 'producto', 'clase', 'avatar'],
     required: true
   },
 

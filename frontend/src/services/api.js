@@ -27,6 +27,13 @@ export const googleLoginApi = (credential) => api.post('/auth/google', { credent
 export const logoutApi = () => api.post('/auth/logout')
 export const getProfileApi = () => api.get('/auth/profile')
 export const updateProfileApi = (data) => api.put('/auth/profile', data)
+// Foto de perfil: `archivo` es un Blob/File de imagen
+export const subirFotoApi = (archivo) => {
+  const form = new FormData()
+  form.append('imagen', archivo, 'foto.jpg')
+  return api.put('/auth/profile/foto', form)
+}
+export const quitarFotoApi = () => api.delete('/auth/profile/foto')
 export const forgotPasswordApi = (email) => api.post('/auth/forgot-password', { email })
 export const resetPasswordApi = (token, password) => api.post('/auth/reset-password', { token, password })
 
@@ -54,6 +61,14 @@ export const getHorariosOcupadosApi = (cancha_id, fecha) =>
 export const createReservaApi = (data) => api.post('/reservas', data)
 export const cancelarReservaApi = (id) => api.put(`/reservas/${id}/cancelar`)
 export const deleteReservaApi = (id) => api.delete(`/reservas/${id}`)
+// Admin: el usuario no llegó a una reserva que iba a pagar en la sede (multa)
+export const marcarNoAsistioApi = (id) => api.put(`/reservas/${id}/no-asistio`)
+export const quitarNoAsistioApi = (id) => api.delete(`/reservas/${id}/no-asistio`)
+
+// ─── MULTAS ─────────────────────────────────────────
+export const getMisMultasApi = () => api.get('/multas/mias')
+export const getMultasApi = (estado) => api.get('/multas', { params: estado ? { estado } : {} })
+export const anularMultaApi = (id, motivo) => api.put(`/multas/${id}/anular`, { motivo })
 
 // ─── PRODUCTOS ──────────────────────────────────────
 export const getProductosApi = (categoria, todas) =>

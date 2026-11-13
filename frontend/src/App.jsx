@@ -33,6 +33,7 @@ const AdminMedia = lazy(() => import('./pages/Admin/sections/Media'))
 const AdminUsuarios = lazy(() => import('./pages/Admin/sections/Usuarios'))
 const AdminCalendario = lazy(() => import('./pages/Admin/sections/Calendario'))
 const AdminPagos = lazy(() => import('./pages/Admin/sections/Pagos'))
+const AdminMultas = lazy(() => import('./pages/Admin/sections/Multas'))
 
 const LoadingScreen = () => (
   <div className="loading-screen" style={{
@@ -156,6 +157,7 @@ function App() {
                 <Route path="calendario" element={<AdminCalendario />} />
                 <Route path="reservas" element={<AdminReservas />} />
                 <Route path="pagos" element={<AdminPagos />} />
+                <Route path="multas" element={<AdminMultas />} />
                 <Route path="pedidos" element={<AdminPedidos />} />
                 <Route path="canchas" element={<AdminCanchas />} />
                 <Route path="productos" element={<AdminProductos />} />

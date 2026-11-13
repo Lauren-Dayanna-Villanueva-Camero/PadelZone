@@ -50,6 +50,19 @@ const reservaSchema = new mongoose.Schema({
   pagada: {
     type: Boolean,
     default: false
+  },
+
+  // El admin marca que el usuario no llegó a una reserva que iba a pagar en la
+  // sede: se le cobra una multa (models/multa.model.js)
+  no_asistio: {
+    type: Boolean,
+    default: false
+  },
+
+  multa_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Multa',
+    default: null
   }
 }, {
   timestamps: {

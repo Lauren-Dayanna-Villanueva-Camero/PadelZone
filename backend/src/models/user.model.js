@@ -43,6 +43,19 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
 
+  // Foto de perfil: documento Media (tipo 'avatar') y su URL, para no tener que
+  // poblarla en cada listado
+  foto_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Media',
+    default: null
+  },
+
+  foto_url: {
+    type: String,
+    default: null
+  },
+
   rol: {
     type: String,
     enum: ['usuario', 'admin', 'profesor'],

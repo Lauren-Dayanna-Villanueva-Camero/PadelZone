@@ -332,6 +332,7 @@
 .pago-chip.aprobado, .pago-chip.pagado { background: #e8f5e9; color: #2e7d32; }
 .pago-chip.pendiente { background: #fff3e0; color: #e65100; }
 .pago-chip.rechazado, .pago-chip.anulado { background: #fdecea; color: #c62828; }
+.pago-chip.neutro { background: #eef0f4; color: #555; }
 
 @media (max-width: 480px) {
   .pago-metodos { grid-template-columns: 1fr; }

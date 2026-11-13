@@ -13,6 +13,10 @@ import {
 import { CLIENT_URL, NODE_ENV } from '../config.js'
 import { mailEnabled, enviarCorreoRecuperacion, enviarCorreoContrasenaCambiada } from '../libs/mailer.js'
 import { verificarCredencialGoogle } from '../libs/google.js'
+import { guardarImagen, borrarImagen } from '../libs/imagenes.js'
+
+// Las fotos de perfil llegan recortadas y comprimidas desde el navegador (~50KB)
+const MAX_FOTO = 2 * 1024 * 1024
 
 const RESET_TOKEN_TTL = 60 * 60 * 1000 // 1 hora
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
@@ -32,6 +36,7 @@ const datosSesion = (user) => ({
   apellido: user.apellido,
   email: user.email,
   telefono: user.telefono,
+  foto_url: user.foto_url ?? null,
   rol: user.rol,
   tiene_password: Boolean(user.password_hash),
   google: Boolean(user.google_id)
@@ -325,6 +330,39 @@ export const updateProfile = async (req, res) => {
     return res.status(200).json({ message: 'Perfil actualizado', user: datosSesion(user) })
   } catch (error) {
     console.error('Error en updateProfile:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// PUT /api/auth/profile/foto — sube (o reemplaza) la foto de perfil. Campo 'imagen'
+export const subirFoto = async (req, res) => {
+  try {
+    const media = await guardarImagen(req.file, { tipo: 'avatar', usuarioId: req.user._id, maxBytes: MAX_FOTO })
+    const anterior = req.user.foto_id
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { foto_id: media._id, foto_url: media.url },
+      { new: true }
+    )
+    // La foto anterior ya no la usa nadie
+    if (anterior) await borrarImagen(anterior).catch(err => console.error('No se pudo borrar la foto anterior:', err))
+    return res.status(200).json({ message: 'Foto actualizada', user: datosSesion(user) })
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message })
+    console.error('Error en subirFoto:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// DELETE /api/auth/profile/foto — quita la foto de perfil
+export const quitarFoto = async (req, res) => {
+  try {
+    const anterior = req.user.foto_id
+    const user = await User.findByIdAndUpdate(req.user._id, { foto_id: null, foto_url: null }, { new: true })
+    if (anterior) await borrarImagen(anterior).catch(err => console.error('No se pudo borrar la foto:', err))
+    return res.status(200).json({ message: 'Foto eliminada', user: datosSesion(user) })
+  } catch (error) {
+    console.error('Error en quitarFoto:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
 }

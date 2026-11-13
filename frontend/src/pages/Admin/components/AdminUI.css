@@ -168,6 +168,7 @@
 .adm-alert--error { background: #fdecea; color: #b71c1c; }
 .adm-alert--ok { background: #e6f4ea; color: #1e7e34; }
 .adm-alert--warn { background: #fff4e5; color: #b26a00; }
+.adm-alert--info { background: #eef3fb; color: #1e3c72; }
 
 .adm-empty {
   text-align: center;
@@ -382,3 +383,6 @@
   .adm-form { grid-template-columns: 1fr; }
   .adm-toolbar input, .adm-toolbar select { min-width: 0; flex: 1; }
 }
+
+/* Foto + nombre de una persona en una tabla */
+.adm-persona { display: inline-flex; align-items: center; gap: 10px; }

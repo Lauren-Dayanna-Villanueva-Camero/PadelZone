@@ -4,6 +4,8 @@ import Cancha from '../models/cancha.model.js'
 import { reservaSchema } from '../schema/reserva.schema.js'
 import { bloqueosDeTorneos } from '../libs/horarios.js'
 import { vencerReservasPendientes, cancelarPagosPendientes, MINUTOS_PARA_PAGAR } from '../libs/pagos.js'
+import { estadoMultas } from '../libs/multas.js'
+import { formatoPesos } from '../libs/formato.js'
 
 // GET /api/reservas/ocupados?cancha_id=...&fecha=YYYY-MM-DD — público
 // Devuelve solo los rangos ocupados, sin datos de usuarios. Incluye las franjas
@@ -40,8 +42,9 @@ export const getReservas = async (req, res) => {
       : { usuario_id: req.user._id }
 
     const reservas = await Reserva.find(filter)
-      .populate('usuario_id', 'nombre apellido email')
+      .populate('usuario_id', 'nombre apellido email foto_url')
       .populate('cancha_id', 'nombre tipo precio_por_hora')
+      .populate('multa_id', 'monto estado')
       .sort({ fecha_creacion: -1 })
 
     return res.status(200).json(reservas)
@@ -103,6 +106,15 @@ export const createReserva = async (req, res) => {
     const horaActual = `${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`
     if (fecha === hoy && hora_inicio <= horaActual) {
       return res.status(400).json({ message: 'No se puede reservar en una hora que ya pasó' })
+    }
+
+    // Con multas por inasistencia sin pagar no se puede reservar
+    const multas = await estadoMultas(req.user._id)
+    if (multas.pendientes.length) {
+      return res.status(403).json({
+        code: 'MULTA_PENDIENTE',
+        message: `Tienes ${multas.pendientes.length === 1 ? 'una multa pendiente' : `${multas.pendientes.length} multas pendientes`} de ${formatoPesos(multas.total_pendiente)} por no asistir a una reserva. Págala en tu perfil (Pagos) para volver a reservar.`
+      })
     }
 
     // Verificar que la cancha existe y está activa

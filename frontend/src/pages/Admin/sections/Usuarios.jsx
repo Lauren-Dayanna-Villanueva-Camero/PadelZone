@@ -5,6 +5,7 @@ import { useAuth } from '../../../hooks/useAuth'
 import { useAdmin } from '../../../hooks/useAdmin'
 import { useAdminResource } from '../useAdminResource'
 import { PageHeader, ErrorBanner, Loading, EmptyState, StatusBadge, ConfirmDialog } from '../components/AdminUI'
+import Avatar from '../../../components/Avatar/Avatar'
 
 const roles = [
   { value: 'usuario', label: 'Usuario' },
@@ -144,8 +145,11 @@ function Usuarios() {
                   return (
                     <tr key={u._id} className={u.activo ? '' : 'is-inactive'}>
                       <td>
-                        <strong>{u.nombre} {u.apellido}</strong>
-                        {isMe && <span className="adm-badge adm-badge--info" style={{ marginLeft: 8 }}>Tú</span>}
+                        <span className="adm-persona">
+                          <Avatar persona={u} size={32} />
+                          <strong>{u.nombre} {u.apellido}</strong>
+                          {isMe && <span className="adm-badge adm-badge--info">Tú</span>}
+                        </span>
                       </td>
                       <td className="adm-muted">{u.email}</td>
                       <td className="adm-muted">{u.telefono || '—'}</td>

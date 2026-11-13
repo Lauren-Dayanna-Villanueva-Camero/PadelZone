@@ -16,19 +16,99 @@
   gap: 24px;
 }
 
-.profile-avatar {
-  width: 80px;
-  height: 80px;
+/* Foto de perfil del encabezado (components/Avatar + FotoPerfil.jsx) */
+.foto-perfil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.foto-perfil-btn {
+  position: relative;
+  padding: 0;
+  border: 3px solid rgba(255,255,255,0.5);
   border-radius: 50%;
   background: rgba(255,255,255,0.2);
-  border: 3px solid rgba(255,255,255,0.5);
+  cursor: pointer;
+  line-height: 0;
+  transition: border-color 0.2s ease;
+}
+/* Materialize pinta de verde-azulado todo button:focus */
+.foto-perfil-btn:focus { background: rgba(255,255,255,0.2); outline: none; }
+.foto-perfil-btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.foto-perfil-btn:hover { border-color: #fff; }
+.foto-perfil-btn:disabled { cursor: wait; }
+
+.foto-perfil-img.avatar--iniciales { background: transparent; font-size: 1.8rem !important; }
+
+.foto-perfil-camara {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  color: #1e3c72;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.foto-perfil-camara .material-icons { font-size: 17px; }
+
+.foto-perfil-quitar {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: rgba(255,255,255,0.85);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.foto-perfil-quitar:focus { background: none; }
+.foto-perfil-quitar:hover { color: #fff; }
+
+.foto-perfil-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 220px;
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  z-index: 2;
+}
+
+/* Aviso de multa por inasistencia */
+.profile-multa-aviso {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  border-left: 5px solid #c62828;
+}
+.profile-multa-aviso > .material-icons { color: #c62828; font-size: 28px; }
+.profile-multa-aviso > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.profile-multa-aviso strong { color: #8e1c1c; }
+.profile-multa-aviso span { color: #5b2b2b; font-size: 0.9rem; }
+.profile-multa-aviso--info { background: #eef3fb; border-color: #c9d8f0; border-left-color: #1e3c72; }
+.profile-multa-aviso--info > .material-icons { color: #1e3c72; }
+.profile-multa-aviso--info span { color: #2b3a55; }
+
+@media (max-width: 600px) {
+  .profile-multa-aviso { flex-wrap: wrap; }
 }
 
 .profile-header-info {

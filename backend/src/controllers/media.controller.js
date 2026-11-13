@@ -1,72 +1,26 @@
-import mongoose from 'mongoose'
 import Media from '../models/media.model.js'
 import Cancha from '../models/cancha.model.js'
 import Producto from '../models/producto.model.js'
 import Carrusel from '../models/carrusel.model.js'
-import { cloudinaryEnabled, uploadBuffer, destroyImage, MAX_SIZE_MONGO } from '../libs/cloudinary.js'
+import User from '../models/user.model.js'
+import { guardarImagen, borrarImagen } from '../libs/imagenes.js'
 
+// Tipos que sube el admin. Las fotos de perfil ('avatar') las sube cada usuario
+// desde PUT /api/auth/profile/foto y no aparecen en la galería
 const tiposValidos = ['carrusel', 'cancha', 'producto', 'clase']
-
-// El mimetype lo declara el cliente; se comprueba la firma real del archivo
-const detectImageType = (buf) => {
-  if (buf.length < 12) return null
-  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
-  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
-  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp'
-  return null
-}
 
 // POST /api/media/upload — solo admin
 export const uploadMedia = async (req, res) => {
   try {
     const { tipo } = req.body
-
     if (!req.file) {
       return res.status(400).json({ message: 'No se proporcionó ninguna imagen' })
     }
-
     if (!tiposValidos.includes(tipo)) {
       return res.status(400).json({ message: 'Tipo de imagen inválido' })
     }
 
-    const mimeType = detectImageType(req.file.buffer)
-    if (!mimeType) {
-      return res.status(400).json({ message: 'El archivo no es una imagen JPG, PNG o WEBP válida' })
-    }
-
-    const _id = new mongoose.Types.ObjectId()
-    const media = {
-      _id,
-      nombre_archivo: req.file.originalname,
-      tipo,
-      mime_type: mimeType,
-      tamano: req.file.size,
-      subida_por: req.user._id
-    }
-
-    if (cloudinaryEnabled()) {
-      try {
-        const result = await uploadBuffer(req.file.buffer, tipo)
-        media.url = result.secure_url
-        media.public_id = result.public_id
-      } catch (error) {
-        // Si Cloudinary falla, se intenta guardar en MongoDB
-        console.error('Error subiendo a Cloudinary, se usará MongoDB:', error.message)
-      }
-    }
-
-    if (!media.url) {
-      if (req.file.size > MAX_SIZE_MONGO) {
-        return res.status(400).json({
-          message: `La imagen supera el tamaño máximo de ${MAX_SIZE_MONGO / 1024 / 1024}MB`
-        })
-      }
-      // Se sirve desde GET /api/media/:id/archivo
-      media.url = `/api/media/${_id}/archivo`
-      media.data = req.file.buffer
-    }
-
-    const newMedia = await Media.create(media)
+    const newMedia = await guardarImagen(req.file, { tipo, usuarioId: req.user._id })
 
     return res.status(201).json({
       message: 'Imagen subida exitosamente',
@@ -80,6 +34,7 @@ export const uploadMedia = async (req, res) => {
       }
     })
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message })
     console.error('Error en uploadMedia:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
@@ -89,7 +44,7 @@ export const uploadMedia = async (req, res) => {
 export const getMedia = async (req, res) => {
   try {
     const { tipo } = req.query
-    const filter = tiposValidos.includes(tipo) ? { tipo } : {}
+    const filter = tiposValidos.includes(tipo) ? { tipo } : { tipo: { $ne: 'avatar' } }
 
     const media = await Media.find(filter)
       .populate('subida_por', 'nombre apellido')
@@ -152,12 +107,16 @@ export const deleteMedia = async (req, res) => {
   try {
     const id = req.params.id
 
-    // No se borra una imagen que alguna cancha, producto o slide sigue usando
-    const [canchas, productos, slides] = await Promise.all([
+    // No se borra una imagen que alguna cancha, producto, slide o perfil sigue usando
+    const [canchas, productos, slides, perfiles] = await Promise.all([
       Cancha.countDocuments({ imagen_id: id }),
       Producto.countDocuments({ imagen_id: id }),
-      Carrusel.countDocuments({ imagen_id: id })
+      Carrusel.countDocuments({ imagen_id: id }),
+      User.countDocuments({ foto_id: id })
     ])
+    if (perfiles > 0) {
+      return res.status(409).json({ message: 'Es la foto de perfil de un usuario; solo él puede quitarla.' })
+    }
     const enUso = canchas + productos + slides
     if (enUso > 0) {
       return res.status(409).json({
@@ -165,16 +124,9 @@ export const deleteMedia = async (req, res) => {
       })
     }
 
-    const media = await Media.findByIdAndDelete(id)
-
+    const media = await borrarImagen(id)
     if (!media) {
       return res.status(404).json({ message: 'Imagen no encontrada' })
-    }
-
-    if (media.public_id && cloudinaryEnabled()) {
-      await destroyImage(media.public_id).catch(err =>
-        console.error('No se pudo borrar de Cloudinary:', err)
-      )
     }
 
     return res.status(200).json({ message: 'Imagen eliminada exitosamente' })

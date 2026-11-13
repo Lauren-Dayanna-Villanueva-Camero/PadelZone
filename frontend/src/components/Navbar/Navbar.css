@@ -90,6 +90,16 @@ nav ul li:last-child {
   margin-right: 6px;
 }
 
+.nav-user-name .nav-user-avatar {
+  margin-right: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem !important;
+}
+
+.nav-mobile-avatar {
+  font-size: 0.65rem !important;
+}
+
 .btn-logout {
   border: 2px solid #ff5252 !important;
   border-radius: 25px !important;

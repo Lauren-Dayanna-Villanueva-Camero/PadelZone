@@ -80,3 +80,14 @@ button.pagos-kpi:focus-visible { outline: 2px solid #1e3c72; outline-offset: 2px
 .adm-toolbar.pagos-filtros input[type="search"]:not(.browser-default) { flex: 1 1 220px; min-width: 200px; }
 .adm-toolbar.pagos-filtros select { min-width: 150px; }
 .adm-toolbar.pagos-filtros input[type="date"]:not(.browser-default) { min-width: 150px; }
+
+/* Multas (usa las mismas tarjetas de resumen que Pagos) */
+.pagos-resumen.multas-resumen { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pagos-kpi--ok { border-left-color: #2e7d32; }
+.pagos-kpi--off { border-left-color: #9e9e9e; }
+.multas-reglas { margin-bottom: 16px; }
+.multas-reglas a { font-weight: 600; }
+
+@media (max-width: 600px) {
+  .pagos-resumen.multas-resumen { grid-template-columns: 1fr; }
+}

@@ -11,9 +11,11 @@ import {
   cambiarEstado,
   consultarTransaccionWompi,
   procesarTransaccionWompi,
-  eventoWompiValido
+  eventoWompiValido,
+  CONCEPTOS
 } from '../libs/pagos.js'
 import { WOMPI_PUBLIC_KEY } from '../config.js'
+import { reglasMultas } from '../libs/multas.js'
 
 const datosInvalidos = (res, parsed) => res.status(400).json({
   message: 'Datos inválidos',
@@ -34,7 +36,9 @@ export const getConfig = (req, res) => {
     proveedor: proveedorEnLinea(),
     sandbox: wompiActivo() ? !WOMPI_PUBLIC_KEY.startsWith('pub_prod_') : true,
     bancos_pse: BANCOS_PSE,
-    minutos_para_pagar: MINUTOS_PARA_PAGAR
+    minutos_para_pagar: MINUTOS_PARA_PAGAR,
+    // Multas por no asistir: porcentaje, límite de inasistencias y días que cuentan
+    multas: reglasMultas()
   })
 }
 
@@ -145,7 +149,7 @@ export const getPagos = async (req, res) => {
     const { estado, concepto, metodo, desde, hasta, q } = req.query
     const filtro = {}
     if (['pendiente', 'aprobado', 'rechazado', 'anulado'].includes(estado)) filtro.estado = estado
-    if (['reserva', 'pedido', 'torneo', 'clase'].includes(concepto)) filtro.concepto = concepto
+    if (CONCEPTOS.includes(concepto)) filtro.concepto = concepto
     if (['tarjeta', 'pse', 'nequi', 'efectivo', 'otro'].includes(metodo)) filtro.metodo = metodo
     const esDia = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
     if (esDia(desde) || esDia(hasta)) {
@@ -167,7 +171,7 @@ export const getPagos = async (req, res) => {
     // revisan todos los que cumplen el filtro (no solo los que se listan)
     const aprobadosTodos = await Pago.find({ ...filtroResumen, estado: 'aprobado' }).select('concepto referencia_id').lean()
     const cancelados = new Set()
-    for (const c of ['reserva', 'pedido', 'torneo', 'clase']) {
+    for (const c of CONCEPTOS) {
       const ids = aprobadosTodos.filter(p => p.concepto === c).map(p => p.referencia_id)
       for (const id of await idsCancelados(c, ids)) cancelados.add(`${c}:${id}`)
     }

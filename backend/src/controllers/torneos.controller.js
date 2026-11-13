@@ -31,6 +31,8 @@ import {
 } from '../libs/torneos.js'
 import { errorProgramacion, conflictosBloque, aMinutos, aHora, diaKey } from '../libs/horarios.js'
 import { isAdminRequest } from '../middlewares/auth.middleware.js'
+import { generarCodigo, codigoValido } from '../libs/codigos.js'
+import { cancelarPagosPendientes, registrarPagoManual, anularPagosAprobados } from '../libs/pagos.js'
 
 // Usuarios que forman parte de un torneo: inscritos o declarados como pareja de un inscrito
 const filtroParticipacion = (torneoId, usuarioId) => ({
@@ -65,7 +67,9 @@ export const getTorneos = async (req, res) => {
     const { estado } = req.query
     const filter = estado ? { estado } : {}
 
-    const torneos = await Torneo.find(filter).populate('canchas', 'nombre').sort({ fecha_inicio: 1 })
+    // El código de los torneos privados solo lo ve el admin
+    const query = Torneo.find(filter).populate('canchas', 'nombre').sort({ fecha_inicio: 1 })
+    const torneos = await (isAdminRequest(req) ? query.select('+codigo_acceso') : query)
 
     // Agregar conteo de participantes (jugadores) y de cupos ocupados (parejas)
     const torneosConParticipantes = await Promise.all(
@@ -93,13 +97,14 @@ export const getTorneos = async (req, res) => {
 export const getTorneoById = async (req, res) => {
   try {
     await actualizarEstadosTorneos()
-    const torneo = await Torneo.findById(req.params.id).populate('canchas', 'nombre')
+    const esAdmin = isAdminRequest(req)
+    const query = Torneo.findById(req.params.id).populate('canchas', 'nombre')
+    const torneo = await (esAdmin ? query.select('+codigo_acceso') : query)
 
     if (!torneo) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
     }
 
-    const esAdmin = isAdminRequest(req)
     const { participantes, equipos, sin_pareja_asignada } = await obtenerOrganizacion(torneo._id)
 
     const respuesta = {
@@ -155,7 +160,10 @@ export const createTorneo = async (req, res) => {
       return res.status(400).json({ message: 'Alguna de las canchas elegidas no existe' })
     }
 
-    const newTorneo = new Torneo(data)
+    const newTorneo = new Torneo({
+      ...data,
+      codigo_acceso: data.privado ? generarCodigo() : null
+    })
     await newTorneo.save()
     const aviso = await avisoCruces(newTorneo)
 
@@ -183,10 +191,13 @@ export const updateTorneo = async (req, res) => {
 
     const data = aFechas(parsed.data)
 
-    const actual = await Torneo.findById(req.params.id)
+    const actual = await Torneo.findById(req.params.id).select('+codigo_acceso')
     if (!actual) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
     }
+
+    // Al volverlo privado se le genera un código (si no tenía uno de antes)
+    if (data.privado && !actual.codigo_acceso) data.codigo_acceso = generarCodigo()
 
     // Las reglas de fechas se revisan con lo guardado + lo que cambia
     const final = { ...actual.toObject(), ...data }
@@ -233,7 +244,7 @@ export const updateTorneo = async (req, res) => {
       req.params.id,
       data,
       { new: true, runValidators: true }
-    )
+    ).select('+codigo_acceso')
 
     if (!torneo) {
       return res.status(404).json({ message: 'Torneo no encontrado' })
@@ -336,6 +347,21 @@ export const inscribirParticipante = async (req, res) => {
     let parejaId = parsed.data.pareja_usuario_id || null
     const parejaEmail = parsed.data.pareja_email || null
 
+    // Torneo privado: hace falta el código de acceso, salvo que un inscrito (que
+    // sí lo tenía) ya haya declarado a este usuario como su pareja
+    if (torneo.privado) {
+      const { codigo_acceso: codigo } = await Torneo.findById(torneo._id).select('+codigo_acceso')
+      const invitado = await Participante.exists({ torneo_id: torneo._id, pareja_usuario_id: req.user._id })
+      if (!invitado && !codigoValido(parsed.data.codigo, codigo)) {
+        return res.status(403).json({
+          message: parsed.data.codigo
+            ? 'El código de acceso no es correcto. Pídelo de nuevo a la organización del torneo.'
+            : 'Este torneo es privado: ingresa el código de acceso que te dio la organización.',
+          codigo_requerido: true
+        })
+      }
+    }
+
     if (!parejaId && parejaEmail) {
       if (parejaEmail === req.user.email) {
         return res.status(400).json({ message: 'No puedes inscribirte como tu propia pareja' })
@@ -421,6 +447,13 @@ export const updateParticipante = async (req, res) => {
 
     if (!participante) {
       return res.status(404).json({ message: 'Inscripción no encontrada' })
+    }
+
+    // Queda constancia en Pagos: confirmar a mano = pago recibido en la sede
+    if (pago_confirmado) {
+      await registrarPagoManual('torneo', participante._id, req.user._id)
+    } else {
+      await anularPagosAprobados('torneo', participante._id, 'Pago desmarcado por el administrador')
     }
 
     return res.status(200).json({ message: 'Inscripción actualizada', participante })
@@ -532,6 +565,7 @@ export const cancelarInscripcion = async (req, res) => {
     if (!participante) {
       return res.status(404).json({ message: 'Inscripción no encontrada' })
     }
+    await cancelarPagosPendientes('torneo', participante._id)
 
     return res.status(200).json({ message: 'Inscripción cancelada exitosamente' })
   } catch (error) {
@@ -872,6 +906,25 @@ export const reprogramarHorarios = async (req, res) => {
     })
   } catch (error) {
     console.error('Error en reprogramarHorarios:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// PUT /api/torneos/:id/codigo — solo admin: genera un código de acceso nuevo
+// (el anterior deja de servir). Solo para torneos privados
+export const regenerarCodigo = async (req, res) => {
+  try {
+    const torneo = await Torneo.findOneAndUpdate(
+      { _id: req.params.id, privado: true },
+      { codigo_acceso: generarCodigo() },
+      { new: true }
+    ).select('+codigo_acceso')
+    if (!torneo) {
+      return res.status(404).json({ message: 'No hay un torneo privado con ese id' })
+    }
+    return res.status(200).json({ message: 'Se generó un código de acceso nuevo', codigo_acceso: torneo.codigo_acceso })
+  } catch (error) {
+    console.error('Error en regenerarCodigo:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
 }

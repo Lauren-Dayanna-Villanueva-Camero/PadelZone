@@ -7,9 +7,11 @@ import {
   createSolicitudApi,
   getMisSolicitudesApi,
   cancelarSolicitudApi,
+  regenerarCodigoSolicitudApi,
   getErrorMessage
 } from '../../services/api'
 import { formatPrice, formatDateLong, formatDateShort, formatHour, todayKey, addDaysKey } from '../../utils/helpers'
+import CodigoAcceso from '../../components/CodigoAcceso/CodigoAcceso'
 import './OrganizaTorneo.css'
 
 // Duraciones de convenio y su descuento (igual que DESCUENTO_CONVENIO en el backend)
@@ -55,6 +57,8 @@ const formInicial = (user) => {
     canchas: [],
     cupo_maximo_parejas: '8',
     precio_inscripcion: '0',
+    // Por defecto, solo la gente de la empresa (con el código) puede inscribirse
+    privado: true,
     inscripcion_apertura: addDaysKey(hoy, 1),
     inscripcion_cierre: addDaysKey(hoy, 18)
   }
@@ -223,6 +227,18 @@ function MisSolicitudes({ solicitudes, onCancelar, cancelando, onVerTorneos }) {
             )}
             {s.estado === 'aprobada' && s.convenio_vigente_hasta && (
               <p className="org-respuesta ok"><i className="material-icons">verified</i>Convenio vigente hasta el {formatDateLong(s.convenio_vigente_hasta)}</p>
+            )}
+            {s.privado && s.estado !== 'aprobada' && (
+              <p className="org-respuesta"><i className="material-icons">lock</i>Torneo privado: al aprobarse recibirás aquí el código de acceso para tus empleados.</p>
+            )}
+            {s.estado === 'aprobada' && s.torneo_id?.privado && s.torneo_id.codigo_acceso && (
+              <CodigoAcceso
+                codigo={s.torneo_id.codigo_acceso}
+                torneoId={s.torneo_id._id}
+                onRegenerar={['activo', 'en_curso'].includes(s.torneo_id.estado)
+                  ? async () => (await regenerarCodigoSolicitudApi(s._id)).data.codigo_acceso
+                  : null}
+              />
             )}
             <div className="org-solicitud-acciones">
               {s.estado === 'aprobada' && s.torneo_id && (
@@ -441,6 +457,37 @@ function OrganizaTorneo({ onVerTorneos }) {
                 <label>Inscripción por jugador (COP)</label>
                 <input className="browser-default" type="number" min="0" step="1000" value={form.precio_inscripcion} onChange={set('precio_inscripcion')} />
                 <span className="tournament-form-hint">0 si la empresa asume la inscripción.</span>
+              </div>
+              <div className="tournament-form-field org-full">
+                <label>¿Quién puede inscribirse?</label>
+                <div className="org-acceso" role="radiogroup" aria-label="Acceso al torneo">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.privado}
+                    className={form.privado ? 'activo' : ''}
+                    onClick={() => setForm(f => ({ ...f, privado: true }))}
+                  >
+                    <i className="material-icons">lock</i>
+                    <span>
+                      <strong>Solo mi empresa u organización</strong>
+                      <small>Te damos un código de acceso para repartir. Sin él nadie puede inscribirse.</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!form.privado}
+                    className={!form.privado ? 'activo' : ''}
+                    onClick={() => setForm(f => ({ ...f, privado: false }))}
+                  >
+                    <i className="material-icons">public</i>
+                    <span>
+                      <strong>Abierto a todos</strong>
+                      <small>Cualquier usuario de PadelZone puede inscribirse.</small>
+                    </span>
+                  </button>
+                </div>
               </div>
               <div className="tournament-form-field org-full">
                 <label>Descripción (opcional)</label>

@@ -4,7 +4,9 @@ import './AdminSidebar.css'
 
 const links = [
   { to: '/admin', label: 'Dashboard', icon: 'dashboard', end: true },
+  { to: '/admin/calendario', label: 'Calendario', icon: 'calendar_month' },
   { to: '/admin/reservas', label: 'Reservas', icon: 'event_available' },
+  { to: '/admin/pagos', label: 'Pagos', icon: 'payments' },
   { to: '/admin/pedidos', label: 'Pedidos', icon: 'receipt_long' },
   { to: '/admin/canchas', label: 'Canchas', icon: 'sports_tennis' },
   { to: '/admin/productos', label: 'Productos', icon: 'shopping_bag' },

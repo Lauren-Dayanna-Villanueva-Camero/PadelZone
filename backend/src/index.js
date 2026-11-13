@@ -20,6 +20,9 @@ import mediaRoutes from './routes/media.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import clasesRoutes from './routes/clases.routes.js'
 import solicitudesRoutes from './routes/solicitudes.routes.js'
+import pagosRoutes from './routes/pagos.routes.js'
+import calendarioRoutes from './routes/calendario.routes.js'
+import { vencerReservasPendientes, wompiActivo } from './libs/pagos.js'
 
 // Sin estas variables el servidor no puede funcionar de forma segura
 if (!MONGODB_URI || !JWT_SECRET) {
@@ -49,6 +52,8 @@ app.use('/api/media', mediaRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/clases', clasesRoutes)
 app.use('/api/solicitudes-torneo', solicitudesRoutes)
+app.use('/api/pagos', pagosRoutes)
+app.use('/api/calendario', calendarioRoutes)
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'Ruta no encontrada' })
@@ -84,4 +89,9 @@ app.use((err, req, res, next) => {
 await connectDB()
 await checkCloudinary()
 await checkMailer()
+console.log(wompiActivo() ? 'Pagos en línea: Wompi' : 'Pagos en línea: simulados (sin llaves de Wompi)')
+// Libera cada minuto los horarios de reservas que no se pagaron a tiempo
+setInterval(() => {
+  vencerReservasPendientes().catch(err => console.error('Error venciendo reservas:', err))
+}, 60 * 1000).unref()
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`))

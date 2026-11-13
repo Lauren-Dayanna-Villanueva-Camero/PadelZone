@@ -28,6 +28,8 @@ import Pedido from '../src/models/pedido.model.js'
 import PedidoItem from '../src/models/pedidoItem.model.js'
 import InscripcionClase from '../src/models/inscripcionClase.model.js'
 import Carrusel from '../src/models/carrusel.model.js'
+import Pago from '../src/models/pago.model.js'
+import { precioClase } from '../src/libs/clases.js'
 import { checkCloudinary, cloudinaryEnabled, uploadBuffer, destroyImage } from '../src/libs/cloudinary.js'
 import { organizarEquipos, llaveSiguiente } from '../src/libs/torneos.js'
 import { bloqueosDeTorneos } from '../src/libs/horarios.js'
@@ -205,6 +207,9 @@ const SOLICITUDES = [
     inicio: 12, fin: 13, franja: ['08:00', '13:00'], canchas: ['Cancha 5'],
     cupo_maximo_parejas: 4, precio_inscripcion: 0, apertura: -3, cierre: 10,
     respuesta: 'Aprobado. Las canchas quedan apartadas para su torneo.',
+    // Torneo privado: solo se inscribe quien tenga el código (la empresa lo ve en
+    // "Organiza tu torneo" → Mis solicitudes)
+    privado: true, codigo: 'CAFE-2026',
     participantes: { parejas: [[22, 23]], sueltos: [24, 25] }
   },
   {
@@ -343,6 +348,7 @@ const reset = async () => {
   await Participante.deleteMany({ $or: [{ usuario_id: { $in: ids } }, { torneo_id: { $in: torneos.map(t => t._id) } }] })
   await SolicitudTorneo.deleteMany({ solicitante_id: { $in: ids } })
   await InscripcionClase.deleteMany({ usuario_id: { $in: ids } })
+  await Pago.deleteMany({ usuario_id: { $in: ids } })
   await Partido.deleteMany({ torneo_id: { $in: torneos.map(t => t._id) } })
   await Torneo.deleteMany({ _id: { $in: torneos.map(t => t._id) } })
   await Cancha.deleteMany({ _id: { $in: canchas.map(c => c._id) } })
@@ -514,6 +520,7 @@ const seed = async () => {
       canchas: canchasSol.map(c => c._id),
       cupo_maximo_parejas: s.cupo_maximo_parejas,
       precio_inscripcion: s.precio_inscripcion,
+      privado: Boolean(s.privado),
       inscripcion_apertura: fechaUTC(diaKey(s.apertura)),
       inscripcion_cierre: fechaUTC(diaKey(s.cierre)),
       costo: {
@@ -549,6 +556,8 @@ const seed = async () => {
         duracion_partido_min: 90,
         canchas: solicitud.canchas,
         organizador: s.empresa.nombre,
+        privado: Boolean(s.privado),
+        codigo_acceso: s.privado ? s.codigo : null,
         solicitud_id: solicitud._id
       })
       // El convenio cuenta desde la aprobación (hoy)
@@ -669,6 +678,7 @@ const seed = async () => {
       dias: clase.dias,
       horario: elegir(clase.horarios),
       precio,
+      monto: precioClase(clase.id, grupo) ?? 0,
       nivel: elegir(niveles),
       nombre_alumno: g === 0 ? `Hijo de ${usuario.nombre} Prueba` : `${usuario.nombre} Prueba`,
       telefono: usuario.telefono,
@@ -679,7 +689,65 @@ const seed = async () => {
     resumen.inscripcionesClases++
   }
 
+  // Pagos: constancia de lo que ya está pagado (pasarela simulada) y algunos
+  // pagos en efectivo por confirmar en la sede
+  resumen.pagos = 0
+  const metodos = ['tarjeta', 'tarjeta', 'pse', 'nequi']
+  const detalle = (m) => m === 'tarjeta'
+    ? { marca: elegir(['VISA', 'MASTERCARD']), ultimos4: String(entre(1000, 9999)) }
+    : m === 'pse' ? { banco: elegir(['Bancolombia', 'Davivienda', 'Banco de Bogotá']) } : m === 'nequi' ? { telefono: `******${entre(1000, 9999)}` } : {}
+  const crearPago = async ({ concepto, id, usuario, monto, descripcion, aprobado, metodo, fecha }) => {
+    metodo ??= aprobado ? elegir(metodos) : 'efectivo'
+    const pago = await Pago.create({
+      usuario_id: usuario,
+      concepto,
+      referencia_id: id,
+      referencia: `PZ-${concepto.slice(0, 3).toUpperCase()}-SEED${String(resumen.pagos + 1).padStart(4, '0')}`,
+      descripcion,
+      monto,
+      metodo,
+      proveedor: metodo === 'efectivo' ? 'manual' : 'simulado',
+      estado: aprobado ? 'aprobado' : 'pendiente',
+      detalle: detalle(metodo),
+      pagado_en: aprobado ? fecha : null
+    })
+    await fijarFecha(Pago, pago._id, 'createdAt', fecha)
+    resumen.pagos++
+  }
+
+  const hoy = fechaUTC(diaKey(0))
+  for (const r of await Reserva.find({ usuario_id: { $in: usuarios.map(x => x._id) }, estado: 'confirmada' }).populate('cancha_id', 'nombre')) {
+    const descripcion = `Reserva ${r.cancha_id.nombre} · ${r.fecha.toISOString().slice(0, 10)} · ${r.hora_inicio}–${r.hora_fin}`
+    const base = { concepto: 'reserva', id: r._id, usuario: r.usuario_id, monto: r.precio, descripcion, fecha: r.fecha_creacion }
+    if (rand() < (r.fecha < hoy ? 0.85 : 0.55)) {
+      await crearPago({ ...base, aprobado: true })
+      await Reserva.updateOne({ _id: r._id }, { pagada: true })
+    } else if (rand() < 0.6) {
+      await crearPago({ ...base, aprobado: false }) // pagará en la sede
+    }
+  }
+
+  for (const p of await Pedido.find({ usuario_id: { $in: usuarios.map(x => x._id) } })) {
+    const base = { concepto: 'pedido', id: p._id, usuario: p.usuario_id, monto: p.precio_total, descripcion: `Pedido #${String(p._id).slice(-6).toUpperCase()} de la tienda`, fecha: p.fecha_pedido }
+    if (['pagado', 'enviado'].includes(p.estado)) await crearPago({ ...base, aprobado: true })
+    else if (p.estado === 'pendiente' && rand() < 0.5) await crearPago({ ...base, aprobado: false }) // contraentrega
+  }
+
+  const pagados = await Participante.find({ usuario_id: { $in: usuarios.map(x => x._id) }, pago_confirmado: true }).populate('torneo_id', 'nombre precio_inscripcion')
+  for (const p of pagados) {
+    if (!(p.torneo_id?.precio_inscripcion > 0)) continue
+    await crearPago({ concepto: 'torneo', id: p._id, usuario: p.usuario_id, monto: p.torneo_id.precio_inscripcion, descripcion: `Inscripción al torneo ${p.torneo_id.nombre}`, aprobado: true, fecha: p.fecha_inscripcion })
+  }
+
+  for (const ins of await InscripcionClase.find({ usuario_id: { $in: usuarios.map(x => x._id) }, estado: 'confirmada' })) {
+    if (rand() < 0.6 && ins.monto > 0) {
+      await crearPago({ concepto: 'clase', id: ins._id, usuario: ins.usuario_id, monto: ins.monto, descripcion: `Clase ${ins.clase_nombre} · ${ins.grupo} (mensualidad)`, aprobado: true, fecha: ins.fecha_inscripcion })
+      await InscripcionClase.updateOne({ _id: ins._id }, { pago_confirmado: true })
+    }
+  }
+
   console.log('Creado:', resumen)
+  console.log('Torneo privado de prueba: "Copa Empresarial Café Huila", código CAFE-2026')
 }
 
 // ─── Main ───────────────────────────────────────────

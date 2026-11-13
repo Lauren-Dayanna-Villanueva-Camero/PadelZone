@@ -1,0 +1,66 @@
+.codigo-acceso {
+  border: 1px solid #d6dcf0;
+  background: linear-gradient(135deg, #f5f7ff, #eef3ff);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 10px 0;
+}
+
+.codigo-acceso-head { display: flex; align-items: flex-start; gap: 10px; }
+.codigo-acceso-head > i { color: #1e3c72; }
+.codigo-acceso-head div { display: flex; flex-direction: column; }
+.codigo-acceso-label { font-weight: 700; color: #010231; font-size: 0.9rem; }
+.codigo-acceso-ayuda { font-size: 0.78rem; color: #666; }
+
+.codigo-acceso-valor {
+  font-family: 'Courier New', monospace;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #010231;
+  text-align: center;
+  background: #fff;
+  border: 2px dashed #9fb3dd;
+  border-radius: 10px;
+  padding: 6px 0;
+  margin: 10px 0;
+  user-select: all;
+}
+
+.codigo-acceso-acciones,
+.codigo-acceso-confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.codigo-acceso button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: #1e3c72;
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.codigo-acceso button i { font-size: 16px; }
+.codigo-acceso button.secundario { background: #fff; color: #1e3c72; border: 1px solid #c5cfe8; }
+.codigo-acceso button:disabled { opacity: 0.6; cursor: default; }
+
+.codigo-acceso-confirmar {
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #7a5a00;
+  background: #fff8e1;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.codigo-acceso-confirmar span { flex-basis: 100%; }
+.codigo-acceso-error { color: #c62828; font-size: 0.8rem; margin: 6px 0 0; }

@@ -19,6 +19,7 @@ const Tournaments = lazy(() => import('./pages/Tournaments/Tournaments'))
 const Clases = lazy(() => import('./pages/clases/clases'))
 const Tienda = lazy(() => import('./pages/Tienda/Tienda'))
 const Weather = lazy(() => import('./pages/Weather/Weather'))
+const PagoResultado = lazy(() => import('./pages/PagoResultado/PagoResultado'))
 
 const Admin = lazy(() => import('./pages/Admin/Admin'))
 const Dashboard = lazy(() => import('./pages/Admin/sections/Dashboard'))
@@ -30,6 +31,8 @@ const AdminTorneos = lazy(() => import('./pages/Admin/sections/Torneos'))
 const AdminCarrusel = lazy(() => import('./pages/Admin/sections/Carrusel'))
 const AdminMedia = lazy(() => import('./pages/Admin/sections/Media'))
 const AdminUsuarios = lazy(() => import('./pages/Admin/sections/Usuarios'))
+const AdminCalendario = lazy(() => import('./pages/Admin/sections/Calendario'))
+const AdminPagos = lazy(() => import('./pages/Admin/sections/Pagos'))
 
 const LoadingScreen = () => (
   <div className="loading-screen" style={{
@@ -138,10 +141,21 @@ function App() {
               <Route path="/clases" element={<Clases />} />
               <Route path="/tiendas" element={<Tienda />} />
               <Route path="/clima" element={<Weather />} />
+              {/* Wompi vuelve aquí después de pagar (redirect-url) */}
+              <Route
+                path="/pagos/resultado"
+                element={
+                  <ProtectedRoute>
+                    <PagoResultado />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route path="/admin" element={<Admin />}>
                 <Route index element={<Dashboard />} />
+                <Route path="calendario" element={<AdminCalendario />} />
                 <Route path="reservas" element={<AdminReservas />} />
+                <Route path="pagos" element={<AdminPagos />} />
                 <Route path="pedidos" element={<AdminPedidos />} />
                 <Route path="canchas" element={<AdminCanchas />} />
                 <Route path="productos" element={<AdminProductos />} />

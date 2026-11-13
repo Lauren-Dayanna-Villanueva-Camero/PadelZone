@@ -1,5 +1,7 @@
 import InscripcionClase from '../models/inscripcionClase.model.js'
 import { inscripcionClaseSchema } from '../schema/clase.schema.js'
+import { precioClase } from '../libs/clases.js'
+import { cancelarPagosPendientes } from '../libs/pagos.js'
 
 // GET /api/clases/mis-inscripciones
 export const getMisInscripciones = async (req, res) => {
@@ -47,6 +49,12 @@ export const createInscripcion = async (req, res) => {
       return res.status(400).json({ message: 'La fecha de nacimiento no es válida' })
     }
 
+    // El valor se toma de la tabla del servidor, no del texto que manda el cliente
+    const monto = precioClase(clase_id, grupo)
+    if (monto == null) {
+      return res.status(400).json({ message: 'La clase o el grupo elegido no existe' })
+    }
+
     const existente = await InscripcionClase.findOne({
       usuario_id: req.user._id,
       clase_id,
@@ -60,6 +68,8 @@ export const createInscripcion = async (req, res) => {
     const inscripcion = await InscripcionClase.create({
       ...parsed.data,
       fecha_nacimiento: new Date(fecha_nacimiento),
+      monto,
+      pago_confirmado: false,
       usuario_id: req.user._id
     })
 
@@ -90,6 +100,7 @@ export const cancelarInscripcion = async (req, res) => {
 
     inscripcion.estado = 'cancelada'
     await inscripcion.save()
+    await cancelarPagosPendientes('clase', inscripcion._id)
 
     return res.status(200).json({ message: 'Inscripción cancelada' })
   } catch (error) {

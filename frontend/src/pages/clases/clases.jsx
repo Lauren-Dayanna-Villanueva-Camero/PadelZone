@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { getMisClasesApi, inscribirClaseApi, cancelarClaseApi, getErrorMessage } from '../../services/api'
+import PagoModal from '../../components/Pago/PagoModal'
+import { formatPrice } from '../../utils/helpers'
+// Modales, pestañas y tarjetas de "Mis clases" comparten estilos con Torneos
+import '../Tournaments/Tournaments.css'
 import './clases.css'
 
 import imgRegular from '../../img/regular.png'
@@ -106,13 +110,7 @@ const clases = [
   }
 ]
 
-const formatCard = (val) =>
-  val.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
-
-const formatExpiry = (val) =>
-  val.replace(/\D/g, '').slice(0, 4).replace(/^(\d{2})(\d)/, '$1/$2')
-
-// Los datos de la tarjeta nunca se envían ni se guardan: el pago es simulado
+// El valor que se cobra lo pone el servidor (según la clase y el grupo)
 const buildInscripcion = (clase, grupo, form) => ({
   clase_id: clase.id,
   clase_nombre: clase.nombre,
@@ -156,7 +154,6 @@ function Clases() {
   const [selectedClase, setSelectedClase] = useState(pending?.clase ?? null)
   const [selectedGrupo, setSelectedGrupo] = useState(pending?.grupo ?? null)
   const [showModal, setShowModal] = useState(!!pending)
-  const [step, setStep] = useState('form')
   const [showSuccess, setShowSuccess] = useState(false)
 
   const [form, setForm] = useState(() => pending
@@ -164,9 +161,10 @@ function Clases() {
     : { nombre: '', telefono: '', fechaNacimiento: '', nivel: '', horario: '' })
   const [formError, setFormError] = useState('')
 
-  const [payment, setPayment] = useState({ card: '', holder: '', expiry: '', cvv: '' })
-  const [paymentError, setPaymentError] = useState('')
   const [paying, setPaying] = useState(false)
+  // Inscripción recién creada (o de "Mis clases") esperando el pago
+  const [porPagar, setPorPagar] = useState(null)
+  const [successText, setSuccessText] = useState('')
 
   const loadMisClases = () => {
     getMisClasesApi()
@@ -203,10 +201,7 @@ function Clases() {
     setSelectedClase(clase)
     setSelectedGrupo(grupo)
     setForm({ ...emptyForm(user), horario: clase.horarios[0] })
-    setPayment({ card: '', holder: '', expiry: '', cvv: '' })
     setFormError('')
-    setPaymentError('')
-    setStep('form')
     setShowModal(true)
   }
 
@@ -214,7 +209,6 @@ function Clases() {
     setShowModal(false)
     setSelectedClase(null)
     setSelectedGrupo(null)
-    setStep('form')
   }
 
   const handleInscribirse = (clase, grupo) => {
@@ -225,36 +219,40 @@ function Clases() {
     handleOpenModal(clase, grupo)
   }
 
-  const handleNextStep = () => {
+  const mostrarExito = (texto) => {
+    setSuccessText(texto)
+    setShowSuccess(true)
+    setTimeout(() => setShowSuccess(false), 4000)
+  }
+
+  // Guarda la inscripción y pasa al pago (tarjeta, PSE, Nequi o en la sede)
+  const handleNextStep = async () => {
     if (!form.nombre || !form.telefono || !form.fechaNacimiento || !form.nivel || !form.horario) {
       setFormError('Por favor completa todos los campos.')
       return
     }
     setFormError('')
-    setStep('payment')
-  }
-
-  const handlePayment = async () => {
-    const rawCard = payment.card.replace(/\s/g, '')
-    if (rawCard.length < 16 || !payment.holder || !payment.expiry || payment.cvv.length < 3) {
-      setPaymentError('Por favor completa todos los datos de pago.')
-      return
-    }
-    setPaymentError('')
     setPaying(true)
-
     try {
-      await inscribirClaseApi(buildInscripcion(selectedClase, selectedGrupo, form))
+      const res = await inscribirClaseApi(buildInscripcion(selectedClase, selectedGrupo, form))
       setShowModal(false)
-      setPayment({ card: '', holder: '', expiry: '', cvv: '' })
-      setShowSuccess(true)
       loadMisClases()
-      setTimeout(() => setShowSuccess(false), 3500)
+      setPorPagar(res.data.inscripcion)
     } catch (err) {
-      setPaymentError(getErrorMessage(err, 'No se pudo completar la inscripción.'))
+      setFormError(getErrorMessage(err, 'No se pudo completar la inscripción.'))
     } finally {
       setPaying(false)
     }
+  }
+
+  const terminarPago = (pago) => {
+    setPorPagar(null)
+    loadMisClases()
+    mostrarExito(!pago
+      ? 'Quedaste inscrito. Puedes pagar la mensualidad desde "Mis Clases".'
+      : pago.estado === 'aprobado'
+        ? '¡Inscripción confirmada y pagada!'
+        : '¡Inscripción confirmada! Paga la mensualidad en la sede.')
   }
 
   return (
@@ -397,14 +395,20 @@ function Clases() {
                       </div>
                       <div className="my-reg-detail">
                         <i className="material-icons">payments</i>
-                        <span>Inscripcion: {ins.precio}</span>
+                        <span>Mensualidad: {ins.monto ? formatPrice(ins.monto) : ins.precio}</span>
                       </div>
 
                       <div className="my-reg-footer">
                         <span className="my-reg-status">
-                          <i className="material-icons">check_circle</i>
-                          Confirmada
+                          <i className="material-icons">{ins.pago_confirmado ? 'check_circle' : 'schedule'}</i>
+                          {ins.pago_confirmado ? 'Pagada' : 'Pago pendiente'}
                         </span>
+                        {!ins.pago_confirmado && (
+                          <button className="my-reg-pay-btn" onClick={() => setPorPagar(ins)}>
+                            <i className="material-icons">payment</i>
+                            Pagar
+                          </button>
+                        )}
                         <button
                           className="my-reg-cancel-btn"
                           onClick={() => { setCancelError(''); setCancelTarget(ins._id) }}
@@ -429,12 +433,12 @@ function Clases() {
 
             <div className="tournament-modal-header">
               <div className="tournament-modal-steps">
-                <span className={`modal-step ${step === 'form' ? 'active' : 'done'}`}>
-                  <i className="material-icons">{step === 'form' ? 'person' : 'check'}</i>
+                <span className="modal-step active">
+                  <i className="material-icons">person</i>
                   Datos
                 </span>
                 <div className="modal-step-divider" />
-                <span className={`modal-step ${step === 'payment' ? 'active' : ''}`}>
+                <span className="modal-step">
                   <i className="material-icons">credit_card</i>
                   Pago
                 </span>
@@ -444,8 +448,7 @@ function Clases() {
               </button>
             </div>
 
-            {step === 'form' && (
-              <div className="tournament-modal-body">
+            <div className="tournament-modal-body">
                 <h6 className="modal-section-title">
                   Inscripcion - {selectedClase.nombre} ({selectedGrupo.edad})
                 </h6>
@@ -523,136 +526,36 @@ function Clases() {
                   <p><i className="material-icons">emoji_events</i> Profesor: {selectedGrupo.profesor.nombre}</p>
                 </div>
 
-                <button className="tournament-modal-btn" style={{ backgroundColor: selectedClase.color }} onClick={handleNextStep}>
-                  <i className="material-icons">arrow_forward</i>
-                  Continuar al Pago - {selectedGrupo.precio}
+                <button
+                  className="tournament-modal-btn"
+                  style={{ backgroundColor: selectedClase.color }}
+                  onClick={handleNextStep}
+                  disabled={paying}
+                >
+                  <i className={`material-icons ${paying ? 'spinning' : ''}`}>{paying ? 'refresh' : 'arrow_forward'}</i>
+                  {paying ? 'Inscribiendo...' : `Continuar al pago - ${selectedGrupo.precio}`}
                 </button>
-              </div>
-            )}
-
-            {step === 'payment' && (
-              <div className="tournament-modal-body">
-                <h6 className="modal-section-title">Pago de Inscripcion</h6>
-
-                <div className="payment-summary">
-                  <div className="payment-summary-row">
-                    <span>Clase</span>
-                    <span>{selectedClase.nombre}</span>
-                  </div>
-                  <div className="payment-summary-row">
-                    <span>Grupo</span>
-                    <span>{selectedGrupo.edad}</span>
-                  </div>
-                  <div className="payment-summary-row total">
-                    <span>Total mensual</span>
-                    <span style={{ color: selectedClase.color }}>{selectedGrupo.precio}</span>
-                  </div>
-                </div>
-
-                {paymentError && (
-                  <div className="tournament-form-error">
-                    <i className="material-icons">error_outline</i>
-                    {paymentError}
-                  </div>
-                )}
-
-                <div className="credit-card-preview" style={{ background: selectedClase.color }}>
-                  <div className="credit-card-chip">
-                    <i className="material-icons">contactless</i>
-                  </div>
-                  <div className="credit-card-number">
-                    {payment.card || 'xxxx xxxx xxxx xxxx'}
-                  </div>
-                  <div className="credit-card-bottom">
-                    <div>
-                      <p className="credit-card-label">Titular</p>
-                      <p className="credit-card-value">{payment.holder || 'NOMBRE APELLIDO'}</p>
-                    </div>
-                    <div>
-                      <p className="credit-card-label">Vence</p>
-                      <p className="credit-card-value">{payment.expiry || 'MM/AA'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="tournament-form-field">
-                  <label>Numero de tarjeta</label>
-                  <input
-                    type="text"
-                    placeholder="1234 5678 9012 3456"
-                    value={payment.card}
-                    maxLength={19}
-                    onChange={e => setPayment(p => ({ ...p, card: formatCard(e.target.value) }))}
-                  />
-                </div>
-
-                <div className="tournament-form-field">
-                  <label>Nombre del titular</label>
-                  <input
-                    type="text"
-                    placeholder="Como aparece en la tarjeta"
-                    value={payment.holder}
-                    onChange={e => setPayment(p => ({ ...p, holder: e.target.value.toUpperCase() }))}
-                  />
-                </div>
-
-                <div className="payment-row">
-                  <div className="tournament-form-field">
-                    <label>Fecha de vencimiento</label>
-                    <input
-                      type="text"
-                      placeholder="MM/AA"
-                      value={payment.expiry}
-                      maxLength={5}
-                      onChange={e => setPayment(p => ({ ...p, expiry: formatExpiry(e.target.value) }))}
-                    />
-                  </div>
-                  <div className="tournament-form-field">
-                    <label>CVV</label>
-                    <input
-                      type="password"
-                      placeholder="xxx"
-                      value={payment.cvv}
-                      maxLength={4}
-                      onChange={e => setPayment(p => ({ ...p, cvv: e.target.value.replace(/\D/g, '') }))}
-                    />
-                  </div>
-                </div>
-
-                <p className="payment-disclaimer">
-                  <i className="material-icons">lock</i>
-                  Pago simulado - ningun dato real es procesado
-                </p>
-
-                <div className="payment-actions">
-                  <button className="payment-back-btn" onClick={() => setStep('form')} disabled={paying}>
-                    <i className="material-icons">arrow_back</i>
-                    Volver
-                  </button>
-                  <button
-                    className="tournament-modal-btn"
-                    style={{ backgroundColor: selectedClase.color }}
-                    onClick={handlePayment}
-                    disabled={paying}
-                  >
-                    {paying ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="material-icons spinning">refresh</i>
-                        Procesando...
-                      </span>
-                    ) : (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="material-icons">payment</i>
-                        Pagar e Inscribir
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
 
           </div>
         </div>
+      )}
+
+      {porPagar && (
+        <PagoModal
+          concepto="clase"
+          id={porPagar._id}
+          monto={porPagar.monto}
+          titulo={`${porPagar.clase_nombre} · ${porPagar.grupo}`}
+          resumen={[
+            ['Alumno', porPagar.nombre_alumno],
+            ['Horario', `${porPagar.dias} · ${porPagar.horario}`],
+            ['Periodo', 'Mensualidad']
+          ]}
+          efectivo="Pagar en la sede"
+          onTerminar={terminarPago}
+          onCerrar={() => terminarPago(null)}
+        />
       )}
 
       {cancelTarget && (
@@ -690,7 +593,7 @@ function Clases() {
       {showSuccess && (
         <div className="tournament-toast">
           <i className="material-icons">check_circle</i>
-          Inscripcion confirmada exitosamente!
+          {successText}
         </div>
       )}
     </div>

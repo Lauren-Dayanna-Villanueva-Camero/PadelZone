@@ -34,6 +34,7 @@ const solicitudBase = z.object({
   cupo_maximo_parejas: z.number().int('El cupo debe ser un número entero')
     .min(2, 'El torneo necesita al menos 2 parejas').max(64, 'El cupo máximo es de 64 parejas'),
   precio_inscripcion: z.number().min(0, 'El precio no puede ser negativo'),
+  privado: z.boolean({ error: 'Indica si el torneo es privado' }).optional(),
   inscripcion_apertura: dia('La fecha de apertura de inscripciones es requerida'),
   inscripcion_cierre: dia('La fecha de cierre de inscripciones es requerida')
 })
@@ -47,7 +48,7 @@ export const solicitudSchema = solicitudBase.refine(...fechasEnOrden)
 
 // Para cotizar solo hacen falta los datos que cambian el precio y la disponibilidad
 export const cotizacionSchema = solicitudBase
-  .omit({ empresa: true, nombre_torneo: true, tipo_torneo: true, descripcion: true })
+  .omit({ empresa: true, nombre_torneo: true, tipo_torneo: true, descripcion: true, privado: true })
   .refine(...fechasEnOrden)
 
 export const respuestaSchema = z.object({

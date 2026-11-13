@@ -30,20 +30,27 @@ Universidad Surcolombiana (USCO)
 ## ✨ Características
 
 **Usuarios**
-- Registro, inicio de sesión (JWT en cookie httpOnly) y recuperación de contraseña.
+- Registro e inicio de sesión con email y contraseña o con Google (JWT en cookie httpOnly). Si el email de Google ya tiene cuenta, se vinculan.
+- Recuperación de contraseña por correo (Gmail): enlace de un solo uso que vence en 1 hora, y aviso cuando la contraseña cambia. Las cuentas creadas con Google pueden crear una contraseña con el mismo flujo.
 - Reserva de canchas con consulta de horarios ocupados y cancelación. Las franjas que un torneo tiene apartadas no se pueden reservar.
 - Inscripción a torneos, individual o en pareja (`pareja_email`), dentro de su periodo de inscripciones (apertura y cierre). Antes de la apertura el torneo sale como "Próximamente".
 - Torneos con submenú: Torneos disponibles, Mis inscripciones (mi equipo y cuadro de eliminación), Mis partidos (día, hora, cancha, rival y resultado de cada partido) y Organiza tu torneo.
 - Empresas u organizadores pueden solicitar un torneo: alquiler de canchas por bloque (canchas × horas por día × días) o convenio de 3, 6 o 12 meses con 10, 15 o 20 % de descuento, con cotización, capacidad de partidos y disponibilidad en vivo. Pueden ver y cancelar sus solicitudes.
+- Torneos privados de empresas u organizaciones: solo se inscribe quien tenga el código de acceso (formato `XXXX-XXXX`). La empresa lo ve en "Mis solicitudes", puede copiarlo o compartir un enlace de invitación (`/torneos?torneo=<id>&codigo=<código>`) y regenerarlo si se filtra. Quien fue declarado como pareja por alguien con código no lo necesita.
 - Inscripción a clases y consulta de "Mis clases".
 - Tienda con carrito de compras y pedidos.
-- Perfil con pestañas: reservas, torneos, pedidos y clases.
+- Pagos en línea (tarjeta, PSE, Nequi) o en efectivo en la sede / contraentrega, para reservas, pedidos, inscripciones a torneos y clases. Se puede pagar al momento o más tarde desde el perfil, y cada pago deja un comprobante.
+- Las reservas quedan apartadas 15 minutos mientras se paga; si no se paga (ni se elige pagar en la sede) se liberan solas.
+- Calendario visual (mes, semana y lista) con mis reservas, partidos, torneos y clases.
+- Perfil con pestañas: reservas, torneos, pedidos, pagos (por pagar e historial), calendario y datos.
 - Página de clima en Neiva (API pública Open‑Meteo).
 
 **Administración (`/admin`)**
 - Estadísticas generales.
 - CRUD de canchas, productos, torneos y slides del carrusel.
 - Gestión de reservas, pedidos (cambio de estado) y usuarios (rol / activo).
+- Calendario de todo el club (reservas, partidos y torneos) con filtro por cancha. Las reservas sin pagar se ven con borde punteado.
+- Pagos: recaudado, efectivo por confirmar, pagos por reembolsar (pagados pero cancelados) y totales por método; filtros, confirmación de pagos en efectivo y anulación/reembolso.
 - Biblioteca de imágenes (Cloudinary o MongoDB como respaldo).
 - Torneos:
   - Periodo de inscripciones; se cierran solas al pasar la fecha de cierre o al llenarse el cupo, y el admin también puede cerrarlas a mano.
@@ -51,7 +58,8 @@ Universidad Surcolombiana (USCO)
   - Cada partido recibe fecha, hora y cancha según los días, la franja diaria, la duración de los partidos y las canchas del torneo. El admin puede ajustar cada horario o recalcularlos todos.
   - Resultados en el cuadro: el ganador pasa a la ronda siguiente hasta el campeón.
   - Reorganizar parejas, confirmar pagos y exportar a Excel (`.xlsx`).
-- Solicitudes de torneo de empresas: el admin ve los cruces con reservas u otros torneos y aprueba (se crea el torneo y las canchas quedan apartadas) o rechaza con un motivo.
+  - Torneos privados: al marcarlos se genera el código de acceso, que el admin ve y puede regenerar.
+- Solicitudes de torneo de empresas: el admin ve los cruces con reservas u otros torneos y aprueba (se crea el torneo y las canchas quedan apartadas) o rechaza con un motivo. Si la empresa pidió un torneo privado, al aprobar se genera su código.
 
 **Seguridad**
 - Contraseñas con `bcryptjs`.
@@ -80,7 +88,7 @@ PadelZone/
 │   │   └── seed-prueba.js      # Carga de datos de prueba
 │   └── src/
 │       ├── controllers/        # Lógica de cada recurso
-│       ├── libs/               # JWT, Cloudinary, torneos (parejas, cuadro, horarios), solicitudes y franjas horarias
+│       ├── libs/               # JWT, Cloudinary, torneos (parejas, cuadro, horarios), solicitudes, franjas horarias, pagos, clases y códigos de acceso
 │       ├── middlewares/        # Auth, rate limit, subida de archivos, validación
 │       ├── models/             # Esquemas de Mongoose
 │       ├── routes/             # Definición de endpoints
@@ -91,7 +99,7 @@ PadelZone/
 └── frontend/
     ├── public/
     └── src/
-        ├── components/         # Navbar, Footer, Carrusel, Cuadro (cuadro de eliminación), etc.
+        ├── components/         # Navbar, Footer, Carrusel, Cuadro (cuadro de eliminación), Calendario, Pago, CodigoAcceso, etc.
         ├── contexts/           # AuthContext, AdminContext
         ├── hooks/              # useAuth, useAdmin, useCanchas
         ├── pages/              # Home, Reservas, Torneos, Clases, Tienda, Admin, ...
@@ -164,6 +172,13 @@ Los archivos `.env` **no se suben al repositorio**. Usa los `.env.example` como 
 | `CLOUDINARY_CLOUD_NAME` | No | Cloudinary; si falta, las imágenes se guardan en MongoDB |
 | `CLOUDINARY_API_KEY` | No | |
 | `CLOUDINARY_API_SECRET` | No | |
+| `GMAIL_USER` | No | Cuenta de Gmail que envía los correos de recuperación |
+| `GMAIL_APP_PASSWORD` | No | Contraseña de aplicación de esa cuenta (16 letras; los espacios se ignoran) |
+| `MAIL_FROM_NAME` | No | Nombre del remitente (por defecto `PadelZone`) |
+| `GOOGLE_CLIENT_ID` | No | Client ID de Google para "Continuar con Google" (el mismo del frontend) |
+| `WOMPI_PUBLIC_KEY` | No | Llave pública de Wompi (`pub_test_...` o `pub_prod_...`). Sin ella los pagos en línea son simulados |
+| `WOMPI_INTEGRITY_SECRET` | No | Secreto de integridad de Wompi (firma de cada pago) |
+| `WOMPI_EVENTS_SECRET` | No | Secreto de eventos de Wompi (verifica el webhook) |
 
 Límite de imágenes: 10 MB en Cloudinary y 5 MB en MongoDB. Al arrancar se verifica Cloudinary; si falla se usa MongoDB.
 
@@ -172,6 +187,46 @@ Límite de imágenes: 10 MB en Cloudinary y 5 MB en MongoDB. Al arrancar se veri
 | Variable | Descripción |
 |---|---|
 | `VITE_API_URL` | URL base del backend (por defecto `http://localhost:5000/api`) |
+| `VITE_GOOGLE_CLIENT_ID` | Client ID de Google; si está vacío no se muestra el botón de Google |
+
+### Correo de recuperación (Gmail)
+
+1. En la cuenta de Gmail que enviará los correos, activa la verificación en dos pasos.
+2. Crea una contraseña de aplicación en <https://myaccount.google.com/apppasswords>.
+3. Pon el correo en `GMAIL_USER` y la contraseña en `GMAIL_APP_PASSWORD`. Al arrancar, el backend verifica la conexión y lo indica en consola.
+
+Si no se configura, en desarrollo el enlace de recuperación se muestra en la consola del backend y en la ventana de "¿Olvidaste tu contraseña?". En producción la respuesta es siempre genérica, para no revelar qué emails están registrados.
+
+### Pagos (Wompi)
+
+Sin llaves de Wompi los pagos en línea funcionan en **modo de pruebas simulado** (no se cobra nada) con estas reglas:
+
+| Método | Aprobado | Rechazado |
+|---|---|---|
+| Tarjeta | `4242 4242 4242 4242` (cualquier fecha futura y CVV) | `4111 1111 1111 1111` |
+| Nequi | Cualquier celular | `399 222 2222` |
+| PSE | Cualquier banco | "Banco que rechaza" |
+
+Solo se guardan la marca y los últimos 4 dígitos de la tarjeta.
+
+Para cobrar de verdad:
+
+1. Crea una cuenta en <https://comercios.wompi.co> y copia, en **Desarrolladores**, la llave pública y los secretos de integridad y de eventos (empieza con las de pruebas, `pub_test_...`).
+2. Ponlos en `WOMPI_PUBLIC_KEY`, `WOMPI_INTEGRITY_SECRET` y `WOMPI_EVENTS_SECRET`. `CLIENT_URL` debe ser la URL del frontend: Wompi vuelve a `CLIENT_URL/pagos/resultado`.
+3. En Wompi, configura la URL de eventos: `https://<tu-backend>/api/pagos/wompi/eventos`.
+
+El usuario paga en el checkout de Wompi; al volver, el backend consulta la transacción en Wompi y el webhook confirma los pagos aunque el usuario cierre la ventana. Al arrancar, el backend indica en consola qué modo de pagos usa.
+
+El pago en efectivo queda pendiente hasta que el admin lo confirma en **Admin → Pagos**.
+
+### Inicio de sesión con Google
+
+1. En [Google Cloud Console](https://console.cloud.google.com/apis/credentials) crea un proyecto y configura la pantalla de consentimiento de OAuth (tipo externo, con los permisos `email` y `profile`).
+2. Crea unas credenciales de tipo **ID de cliente de OAuth → Aplicación web**.
+3. En **Orígenes autorizados de JavaScript** agrega `http://localhost:5173` y la URL del frontend en producción. No hacen falta URIs de redirección.
+4. Copia el Client ID en `GOOGLE_CLIENT_ID` (backend) y `VITE_GOOGLE_CLIENT_ID` (frontend). No se usa el client secret.
+
+El backend verifica el ID token de Google; solo acepta emails verificados.
 
 ---
 
@@ -209,7 +264,7 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 | Liga de Verano 2026 | Finalizado | Cuadro completo con campeón y 2 BYE (6 parejas en un cuadro de 8). |
 | Torneo Relámpago Halloween | Cancelado | Cómo se ve un torneo cancelado en las inscripciones del usuario. |
 | Gran Torneo Navideño | Próximamente | Las inscripciones aún no abren. Partidos de 60 minutos. |
-| Copa Empresarial Café Huila | Inscripciones abiertas, 2/4 parejas | Torneo de una empresa aprobado: muestra el organizador y aparta la Cancha 5. |
+| Copa Empresarial Café Huila | Inscripciones abiertas, 2/4 parejas | Torneo **privado** de una empresa: código de acceso `CAFE-2026`. Muestra el organizador y aparta la Cancha 5. |
 
 **Solicitudes de torneo de empresas** (pestaña "Solicitudes de empresas" del admin)
 
@@ -217,7 +272,7 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 |---|---|---|
 | Huila Tech S.A.S. (`usuario5`) | Pendiente | Aprobarla crea el torneo y aparta la Cancha 4. |
 | Colegio Santa Librada (`usuario11`) | Pendiente con cruce | Una reserva de `usuario3` se cruza con el horario, así que el admin no puede aprobarla. |
-| Café Huila Exportaciones (`usuario8`) | Aprobada, convenio de 6 meses vigente | Al cotizar otro torneo en "Organiza tu torneo", `usuario8` recibe el 15 % de descuento del convenio. |
+| Café Huila Exportaciones (`usuario8`) | Aprobada, convenio de 6 meses vigente | Al cotizar otro torneo en "Organiza tu torneo", `usuario8` recibe el 15 % de descuento del convenio. En "Mis solicitudes" ve el código del torneo privado y puede regenerarlo. |
 | Distribuidora El Sol (`usuario9`) | Rechazada | Se ve el motivo del rechazo. |
 | Gimnasio Fitness Neiva (`usuario10`) | Cancelada | Solicitud retirada por la empresa. |
 
@@ -227,7 +282,7 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 - `usuario12`: declaró como pareja a `usuario39`, que no tiene inscripción propia; `usuario39` ve el torneo como "Te inscribió tu pareja".
 - `usuario16` … `usuario21`: inscritos sin pareja en la Copa Comunidad.
 
-**Otros datos:** unas 45 reservas pasadas y futuras (algunas canceladas, ninguna en franjas apartadas por torneos), 17 pedidos en todos los estados y 16 inscripciones a clases (una cancelada).
+**Otros datos:** unas 45 reservas pasadas y futuras (algunas canceladas, ninguna en franjas apartadas por torneos), 17 pedidos en todos los estados, 16 inscripciones a clases (una cancelada) y cerca de 100 pagos (aprobados, en efectivo por confirmar y algunos por reembolsar).
 
 ---
 
@@ -245,8 +300,9 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 | `/login`, `/registro` | Autenticación | Solo sin sesión |
 | `/restablecer/:token` | Restablecer contraseña | Público |
 | `/reservar` | Reservar cancha | Usuario autenticado |
-| `/perfil` | Perfil del usuario | Usuario autenticado |
-| `/admin/*` | Panel: reservas, pedidos, canchas, productos, torneos (con solicitudes de empresas), carrusel, media y usuarios | Administrador |
+| `/perfil` | Perfil del usuario (`?tab=reservations`, `tournaments`, `orders`, `pagos`, `calendario`, `data`) | Usuario autenticado |
+| `/pagos/resultado` | Resultado de un pago al volver de Wompi | Usuario autenticado |
+| `/admin/*` | Panel: calendario, reservas, pagos, pedidos, canchas, productos, torneos (con solicitudes de empresas), carrusel, media y usuarios | Administrador |
 
 ---
 
@@ -256,13 +312,15 @@ Base: `http://localhost:5000/api`
 
 | Recurso | Endpoints |
 |---|---|
-| **Auth** `/auth` | `POST /register`, `POST /login`, `POST /logout`, `POST /forgot-password`, `POST /reset-password`, `GET /profile`, `PUT /profile` |
+| **Auth** `/auth` | `POST /register`, `POST /login`, `POST /google`, `POST /logout`, `POST /forgot-password`, `POST /reset-password`, `GET /profile`, `PUT /profile` |
 | **Canchas** `/canchas` | `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Reservas** `/reservas` | `GET /ocupados`, `GET /`, `GET /:id`, `POST /`, `PUT /:id/cancelar`, `DELETE /:id` |
 | **Productos** `/productos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Pedidos** `/pedidos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id/estado`, `PUT /:id/cancelar` |
-| **Torneos** `/torneos` | `GET /`, `GET /:id`, `GET /mis-inscripciones`, `POST /`, `PUT /:id`, `DELETE /:id`, `POST /:id/inscribir`, `DELETE /:id/cancelar-inscripcion`, `PUT /:id/cerrar-inscripciones`, `PUT /:id/reorganizar`, `PUT /:id/participantes/:participanteId`, `GET /:id/exportar`, `GET /:id/cuadro`, `PUT /:id/partidos/:partidoId`, `PUT /:id/partidos/:partidoId/horario`, `PUT /:id/reprogramar`, `GET /mis-partidos` |
-| **Solicitudes de torneo** `/solicitudes-torneo` | `POST /cotizar`, `POST /`, `GET /mias`, `PUT /:id/cancelar`, `GET /` (admin), `PUT /:id/aprobar` (admin), `PUT /:id/rechazar` (admin) |
+| **Torneos** `/torneos` | `GET /`, `GET /:id`, `GET /mis-inscripciones`, `POST /`, `PUT /:id`, `DELETE /:id`, `POST /:id/inscribir`, `DELETE /:id/cancelar-inscripcion`, `PUT /:id/cerrar-inscripciones`, `PUT /:id/reorganizar`, `PUT /:id/participantes/:participanteId`, `GET /:id/exportar`, `GET /:id/cuadro`, `PUT /:id/partidos/:partidoId`, `PUT /:id/partidos/:partidoId/horario`, `PUT /:id/reprogramar`, `GET /mis-partidos`, `PUT /:id/codigo` (regenerar código, admin) |
+| **Solicitudes de torneo** `/solicitudes-torneo` | `POST /cotizar`, `POST /`, `GET /mias`, `PUT /:id/cancelar`, `PUT /:id/codigo` (la empresa regenera su código), `GET /` (admin), `PUT /:id/aprobar` (admin), `PUT /:id/rechazar` (admin) |
+| **Pagos** `/pagos` | `GET /config`, `POST /` (iniciar pago), `POST /:id/simular`, `GET /wompi/verificar`, `POST /wompi/eventos` (webhook), `GET /mios`, `GET /:id`, `GET /` (admin), `PUT /:id/confirmar` (admin), `PUT /:id/anular` (admin) |
+| **Calendario** `/calendario` | `GET /?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` (máx. 62 días; el admin ve todo el club y puede filtrar con `cancha_id`) |
 | **Clases** `/clases` | `GET /mis-inscripciones`, `GET /inscripciones`, `POST /inscripciones`, `PUT /inscripciones/:id/cancelar` |
 | **Carrusel** `/carrusel` | `GET /`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Media** `/media` | `GET /`, `GET /:id`, `GET /:id/archivo`, `POST /upload`, `DELETE /:id` |
@@ -274,7 +332,7 @@ Las operaciones de escritura sobre catálogos (canchas, productos, torneos, carr
 
 ## 📌 Pendientes
 
-- Integrar una pasarela de pago real (hoy el pago de clases, tienda e inscripción a torneos es simulado; el admin confirma los pagos de torneos a mano).
-- Envío del correo de recuperación por SMTP (en desarrollo se devuelve el enlace en la respuesta).
+- Configurar las llaves de Wompi (primero las de pruebas) para pasar de pagos simulados a reales.
+- Los reembolsos se marcan en el sistema, pero el dinero se devuelve a mano desde el panel de Wompi o en la sede.
 - Rate limit en memoria; usar Redis si se despliegan varias instancias.
 - Cupos de clases dinámicos y gestión de clases desde el panel de administración.

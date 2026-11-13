@@ -26,7 +26,8 @@ const torneoBase = z.object({
   duracion_partido_min: z.number().int().min(30, 'Un partido dura al menos 30 minutos')
     .max(180, 'Un partido dura como máximo 180 minutos').optional(),
   canchas: z.array(objectId('Cancha inválida')).optional(),
-  organizador: z.string().trim().max(120, 'El organizador es demasiado largo').optional()
+  organizador: z.string().trim().max(120, 'El organizador es demasiado largo').optional(),
+  privado: z.boolean({ error: 'Indica si el torneo es privado' }).optional()
 })
 
 const fechasEnOrden = (d) => !d.fecha_inicio || !d.fecha_fin || d.fecha_fin >= d.fecha_inicio
@@ -41,7 +42,9 @@ export const inscripcionSchema = z.object({
   pareja_email: z.union([
     z.literal(''),
     z.string().trim().toLowerCase().email('El email de la pareja no es válido')
-  ]).nullable().optional()
+  ]).nullable().optional(),
+  // Código de acceso de los torneos privados
+  codigo: z.string().trim().max(20, 'El código de acceso no es válido').optional()
 })
 
 // Ganador de un partido del cuadro: número de pareja, o null para quitarlo

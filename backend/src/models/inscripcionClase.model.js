@@ -18,6 +18,9 @@ const inscripcionClaseSchema = new mongoose.Schema({
   dias: { type: String, trim: true },
   horario: { type: String, required: true, trim: true },
   precio: { type: String, trim: true },
+  // Valor mensual en pesos, tomado de la tabla del servidor (libs/clases.js)
+  monto: { type: Number, min: 0, default: 0 },
+  pago_confirmado: { type: Boolean, default: false },
 
   nivel: {
     type: String,

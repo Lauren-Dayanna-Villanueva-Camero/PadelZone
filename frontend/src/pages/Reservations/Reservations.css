@@ -302,6 +302,10 @@
   color: #00897b;
 }
 
+.res-modal-icon.pendiente i { color: #ef6c00; }
+
+a.res-modal-btn { display: inline-block; text-decoration: none; }
+
 .res-modal h4 {
   font-size: 1.5rem;
   font-weight: 700;

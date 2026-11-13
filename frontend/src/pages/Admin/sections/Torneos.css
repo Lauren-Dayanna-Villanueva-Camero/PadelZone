@@ -331,3 +331,4 @@
 @media (min-width: 1200px) {
   .tor-acciones--tabla .tor-acciones-estado { flex-wrap: nowrap; }
 }
+.tor-lock { font-size: 13px !important; vertical-align: -2px; }

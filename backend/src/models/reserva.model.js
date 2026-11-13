@@ -34,10 +34,22 @@ const reservaSchema = new mongoose.Schema({
     min: 0
   },
 
+  // pendiente = horario apartado mientras se paga en línea; si no se paga antes
+  // de `expira_en` se cancela sola. Pagar en la sede la deja confirmada sin pagar
   estado: {
     type: String,
     enum: ['pendiente', 'confirmada', 'cancelada'],
     default: 'confirmada'
+  },
+
+  expira_en: {
+    type: Date,
+    default: null
+  },
+
+  pagada: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: {

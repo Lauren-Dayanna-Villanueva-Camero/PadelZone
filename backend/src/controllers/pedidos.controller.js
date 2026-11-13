@@ -3,6 +3,7 @@ import PedidoItem from '../models/pedidoItem.model.js'
 import Producto from '../models/producto.model.js'
 import mongoose from 'mongoose'
 import { pedidoSchema } from '../schema/pedido.schema.js'
+import { cancelarPagosPendientes, registrarPagoManual, anularPagosAprobados } from '../libs/pagos.js'
 
 const PRECIO_ENVIO = 15000
 const ENVIO_GRATIS_DESDE = 300000
@@ -187,8 +188,16 @@ export const updateEstadoPedido = async (req, res) => {
       return res.status(400).json({ message: 'Un pedido cancelado no se puede modificar' })
     }
 
+    const anterior = pedido.estado
     pedido.estado = estado
     await pedido.save()
+
+    // Queda constancia en Pagos cuando el admin marca o desmarca el pedido como pagado
+    if (estado === 'pagado' && anterior === 'pendiente') {
+      await registrarPagoManual('pedido', pedido._id, req.user._id)
+    } else if (estado === 'pendiente' && anterior !== 'pendiente') {
+      await anularPagosAprobados('pedido', pedido._id, 'El pedido volvió a pendiente de pago')
+    }
 
     return res.status(200).json({
       message: 'Estado actualizado exitosamente',
@@ -234,6 +243,7 @@ export const cancelarPedido = async (req, res) => {
 
     pedido.estado = 'cancelado'
     await pedido.save()
+    await cancelarPagosPendientes('pedido', pedido._id)
 
     return res.status(200).json({ message: 'Pedido cancelado exitosamente' })
   } catch (error) {

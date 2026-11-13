@@ -7,7 +7,8 @@ import {
   createReservaApi,
   getErrorMessage
 } from '../../services/api'
-import { getCourtImage, formatPrice, todayKey } from '../../utils/helpers'
+import { getCourtImage, formatPrice, formatDateLong, todayKey } from '../../utils/helpers'
+import PagoModal from '../../components/Pago/PagoModal'
 import './Reservations.css'
 
 const hours = [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
@@ -39,6 +40,9 @@ function Reservations() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [savedReservation, setSavedReservation] = useState(null)
+  // Reserva recién creada esperando el pago, y cómo terminó: 'pagada' | 'sede' | 'sin_pagar'
+  const [porPagar, setPorPagar] = useState(null)
+  const [resultadoPago, setResultadoPago] = useState('')
 
   // Canchas desde el backend
   useEffect(() => {
@@ -133,7 +137,7 @@ function Reservations() {
         hora_inicio: toHHmm(parseInt(form.startHour)),
         hora_fin: toHHmm(parseInt(form.endHour))
       })
-      setSavedReservation(res.data.reserva)
+      setPorPagar(res.data.reserva)
     } catch (err) {
       setSubmitError(getErrorMessage(err, 'No se pudo crear la reserva.'))
       // Refresca los horarios: puede que alguien haya reservado ese horario mientras tanto
@@ -144,10 +148,17 @@ function Reservations() {
     }
   }
 
+  const terminarPago = (resultado) => {
+    setSavedReservation(porPagar)
+    setResultadoPago(resultado)
+    setPorPagar(null)
+  }
+
   const handleClose = () => {
     setForm(emptyForm)
     setOccupied({ key: '', ranges: [] })
     setSavedReservation(null)
+    setResultadoPago('')
   }
 
   return (
@@ -420,22 +431,52 @@ function Reservations() {
         </div>
       )}
 
+      {/* Pago de la reserva recién apartada */}
+      {porPagar && (
+        <PagoModal
+          concepto="reserva"
+          id={porPagar._id}
+          monto={porPagar.precio}
+          titulo={`Reserva ${porPagar.cancha_id?.nombre ?? ''}`}
+          resumen={[
+            ['Fecha', formatDateLong(porPagar.fecha)],
+            ['Horario', `${porPagar.hora_inicio} – ${porPagar.hora_fin}`]
+          ]}
+          efectivo="Pagar en la sede"
+          aviso="Tu horario queda apartado 15 minutos mientras pagas. Si eliges pagar en la sede, queda confirmado de inmediato."
+          onTerminar={(pago) => terminarPago(pago.estado === 'aprobado' ? 'pagada' : 'sede')}
+          onCerrar={() => terminarPago('sin_pagar')}
+        />
+      )}
+
       {/* Modal confirmación */}
       {savedReservation && (
         <div className="res-modal-overlay" onClick={handleClose}>
           <div className="res-modal" onClick={e => e.stopPropagation()}>
-            <div className="res-modal-icon">
-              <i className="material-icons">check_circle</i>
+            <div className={`res-modal-icon ${resultadoPago === 'sin_pagar' ? 'pendiente' : ''}`}>
+              <i className="material-icons">{resultadoPago === 'sin_pagar' ? 'schedule' : 'check_circle'}</i>
             </div>
-            <h4>¡Reserva Confirmada!</h4>
-            <p>Tu reserva ha sido registrada exitosamente.</p>
+            <h4>
+              {resultadoPago === 'pagada' ? '¡Reserva confirmada y pagada!'
+                : resultadoPago === 'sede' ? '¡Reserva confirmada!'
+                  : 'Horario apartado'}
+            </h4>
+            <p>
+              {resultadoPago === 'pagada' ? 'Tu pago fue aprobado. El comprobante está en tu perfil.'
+                : resultadoPago === 'sede' ? 'Paga en la recepción antes de jugar.'
+                  : 'Tienes 15 minutos para pagarla desde tu perfil (Mis Reservaciones); si no, el horario se libera.'}
+            </p>
             <div className="res-modal-details">
               <p><strong>Cancha:</strong> {savedReservation.cancha_id?.nombre}</p>
               <p><strong>Fecha:</strong> {String(savedReservation.fecha).slice(0, 10)}</p>
               <p><strong>Horario:</strong> {savedReservation.hora_inicio} – {savedReservation.hora_fin}</p>
               <p><strong>Total:</strong> {formatPrice(savedReservation.precio)}</p>
             </div>
-            <button className="res-modal-btn" onClick={handleClose}>Cerrar</button>
+            {resultadoPago === 'sin_pagar' ? (
+              <Link className="res-modal-btn" to="/perfil" onClick={handleClose}>Ir a pagar</Link>
+            ) : (
+              <button className="res-modal-btn" onClick={handleClose}>Cerrar</button>
+            )}
           </div>
         </div>
       )}

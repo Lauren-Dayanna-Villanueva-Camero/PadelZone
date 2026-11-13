@@ -4,6 +4,7 @@ import './Tienda.css'
 import { getProductosApi, createPedidoApi, getErrorMessage } from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
 import { getProductImage } from '../../utils/helpers'
+import PagoModal from '../../components/Pago/PagoModal'
 
 // Deben coincidir con el cálculo del backend (pedidos.controller.js), que es el que manda
 const SHIPPING = 15000
@@ -58,7 +59,9 @@ export default function Tienda() {
   const [cartOpen, setCartOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
-  const [purchaseDone, setPurchaseDone] = useState(false)
+  const [purchaseDone, setPurchaseDone] = useState(null)
+  // Pedido recién creado esperando el pago
+  const [pedidoPorPagar, setPedidoPorPagar] = useState(null)
 
   /* ── Cargar productos al montar ── */
   useEffect(() => {
@@ -134,9 +137,9 @@ export default function Tienda() {
     setCheckoutOpen(true)
   }, [isAuthenticated, navigate, location])
 
-  // Si falla, lanza el error para que el modal lo muestre
+  // Crea el pedido (aparta el stock) y pasa al pago. Si falla, lanza el error para que el modal lo muestre
   const handlePay = useCallback(async (shipping) => {
-    await createPedidoApi({
+    const res = await createPedidoApi({
       items: cartItems.map((i) => ({ producto_id: i.id, cantidad: i.qty })),
       ciudad: shipping.ciudad,
       direccion_envio: shipping.direccion,
@@ -144,12 +147,17 @@ export default function Tienda() {
     })
     setCheckoutOpen(false)
     setCartItems([])
-    setPurchaseDone(true)
-    setTimeout(() => setPurchaseDone(false), 3500)
+    setPedidoPorPagar(res.data.pedido)
 
     // Refresca el stock mostrado
     getProductosApi().then((res) => setProducts(res.data.map(toViewProduct))).catch(() => {})
   }, [cartItems])
+
+  const terminarPago = (pago) => {
+    setPedidoPorPagar(null)
+    setPurchaseDone(!pago ? 'pendiente' : pago.estado === 'aprobado' ? 'pagado' : 'contraentrega')
+    setTimeout(() => setPurchaseDone(null), 4500)
+  }
 
   /* ═══════════════════════
      RENDER
@@ -244,8 +252,25 @@ export default function Tienda() {
         onConfirmPay={handlePay}
       />
 
+      {pedidoPorPagar && (
+        <PagoModal
+          concepto="pedido"
+          id={pedidoPorPagar._id}
+          monto={pedidoPorPagar.precio_total}
+          titulo={`Pedido #${pedidoPorPagar._id.slice(-6).toUpperCase()}`}
+          resumen={[
+            ['Productos', `${pedidoPorPagar.items.reduce((n, i) => n + i.cantidad, 0)} artículo(s)`],
+            ['Envío', pedidoPorPagar.precio_envio ? formatPrice(pedidoPorPagar.precio_envio) : 'Gratis'],
+            ['Entrega', `${pedidoPorPagar.direccion_envio}, ${pedidoPorPagar.ciudad}`]
+          ]}
+          efectivo="Contraentrega"
+          onTerminar={terminarPago}
+          onCerrar={() => terminarPago(null)}
+        />
+      )}
+
       {/* ── Purchase success ── */}
-      {purchaseDone && <PurchaseSuccess />}
+      {purchaseDone && <PurchaseSuccess estado={purchaseDone} />}
     </section>
   )
 }
@@ -450,7 +475,7 @@ function CartDrawer({
 /* ── Checkout modal ──────────────────────── */
 
 function CheckoutModal({ open, onClose, items, formatPrice, subtotal, shippingCost, total, defaultPhone, onConfirmPay }) {
-  const emptyForm = { telefono: defaultPhone || '', ciudad: '', direccion: '', method: 'card' }
+  const emptyForm = { telefono: defaultPhone || '', ciudad: '', direccion: '' }
   const [step, setStep] = useState('summary')
   const [form, setForm] = useState(emptyForm)
   const [payError, setPayError] = useState('')
@@ -460,7 +485,7 @@ function CheckoutModal({ open, onClose, items, formatPrice, subtotal, shippingCo
   const handleNext = () => step === 'summary' && setStep('form')
   const handlePrev = () => setStep('summary')
 
-  // El método de pago es solo visual: no hay pasarela de pago integrada
+  // El método de pago se elige en el paso siguiente (PagoModal)
   const handleSubmit = async (e) => {
     e.preventDefault()
     setPayError('')
@@ -570,38 +595,12 @@ function CheckoutModal({ open, onClose, items, formatPrice, subtotal, shippingCo
                 />
               </div>
 
-              <div className="form-group">
-                <label>Método de pago</label>
-                <div className="payment-methods">
-                  {[
-                    { value: 'card', icon: 'credit_card', label: 'Tarjeta' },
-                    { value: 'pse', icon: 'account_balance', label: 'PSE' },
-                    { value: 'cash', icon: 'payments', label: 'Contraentrega' },
-                  ].map((m) => (
-                    <label
-                      key={m.value}
-                      className={`payment-method ${form.method === m.value ? 'payment-method--active' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment"
-                        value={m.value}
-                        checked={form.method === m.value}
-                        onChange={(e) => setForm({ ...form, method: e.target.value })}
-                      />
-                      <i className="material-icons">{m.icon}</i>
-                      {m.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               <div className="checkout-actions">
                 <button type="button" className="btn-secondary" onClick={handlePrev}>
                   Volver
                 </button>
                 <button type="submit" className="cart-checkout-btn">
-                  Pagar {formatPrice(total)} COP
+                  Continuar al pago · {formatPrice(total)} COP
                 </button>
               </div>
             </form>
@@ -612,7 +611,7 @@ function CheckoutModal({ open, onClose, items, formatPrice, subtotal, shippingCo
         {step === 'processing' && (
           <div className="checkout-processing">
             <div className="spinner-ring" />
-            <p>Procesando tu pago…</p>
+            <p>Creando tu pedido…</p>
             <span>Esto puede tardar unos segundos</span>
           </div>
         )}
@@ -623,15 +622,22 @@ function CheckoutModal({ open, onClose, items, formatPrice, subtotal, shippingCo
 
 /* ── Purchase success overlay ───────────── */
 
-function PurchaseSuccess() {
+const MENSAJES_COMPRA = {
+  pagado: { icon: 'check_circle', titulo: '¡Compra realizada!', texto: 'Tu pago fue aprobado. Te avisaremos cuando enviemos el pedido.' },
+  contraentrega: { icon: 'local_shipping', titulo: '¡Pedido confirmado!', texto: 'Pagarás al recibirlo (contraentrega).' },
+  pendiente: { icon: 'schedule', titulo: 'Pedido creado', texto: 'Puedes pagarlo cuando quieras desde tu perfil, en Mis Pedidos.' }
+}
+
+function PurchaseSuccess({ estado }) {
+  const m = MENSAJES_COMPRA[estado] ?? MENSAJES_COMPRA.pagado
   return (
     <div className="success-overlay">
       <div className="success-box">
         <div className="success-icon">
-          <i className="material-icons">check_circle</i>
+          <i className="material-icons">{m.icon}</i>
         </div>
-        <h2>¡Compra realizada!</h2>
-        <p>Tu pedido ha sido procesado exitosamente.<br />Recibirás un correo de confirmación pronto.</p>
+        <h2>{m.titulo}</h2>
+        <p>{m.texto}</p>
       </div>
     </div>
   )

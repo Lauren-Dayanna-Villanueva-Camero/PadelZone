@@ -12,6 +12,7 @@ import {
   getTournamentImage, formatDateLong, formatDateShort, formatHour, formatPrice, toDateKey, todayKey
 } from '../../utils/helpers'
 import Cuadro from '../../components/Cuadro/Cuadro'
+import PagoModal from '../../components/Pago/PagoModal'
 import MisPartidos from './MisPartidos'
 import OrganizaTorneo from './OrganizaTorneo'
 import './Tournaments.css'
@@ -22,13 +23,9 @@ const categoryColors = {
   'Comunidad': '#6a1b9a'
 }
 
-const formatCard = (val) =>
-  val.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
-
-const formatExpiry = (val) =>
-  val.replace(/\D/g, '').slice(0, 4).replace(/^(\d{2})(\d)/, '$1/$2')
-
-const emptyPayment = { card: '', holder: '', expiry: '', cvv: '' }
+// Código de acceso de un torneo privado: 'K7QM-3XRA'
+const formatCodigo = (val) =>
+  val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8).replace(/^(.{4})(.)/, '$1-$2')
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -149,10 +146,12 @@ function Tournaments() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [successText, setSuccessText] = useState('')
 
-  const [payment, setPayment] = useState(emptyPayment)
   const [parejaEmail, setParejaEmail] = useState('')
+  const [codigo, setCodigo] = useState('')
   const [paymentError, setPaymentError] = useState('')
   const [paying, setPaying] = useState(false)
+  // Inscripción por pagar: { participanteId, torneo, texto }
+  const [porPagar, setPorPagar] = useState(null)
 
   const loadTournaments = useCallback(async (isCancelled = () => false) => {
     try {
@@ -224,7 +223,7 @@ function Tournaments() {
   const spotsPercent = (t) =>
     Math.min(((t.parejas_inscritas || 0) / t.cupo_maximo_parejas) * 100, 100)
 
-  const handleOpenModal = (tournament) => {
+  const handleOpenModal = useCallback((tournament, codigoInicial = '') => {
     if (!isAuthenticated) {
       navigate('/login', { state: { from: location } })
       return
@@ -234,17 +233,36 @@ function Tournaments() {
       return
     }
     setSelectedTournament(tournament)
-    setPayment(emptyPayment)
+    setCodigo(formatCodigo(codigoInicial))
     setParejaEmail('')
     setPaymentError('')
-  }
+  }, [isAuthenticated, navigate, location, loadTournaments])
+
+  // Enlace de invitación de un torneo privado: /torneos?torneo=<id>&codigo=XXXX-XXXX
+  const torneoInvitado = searchParams.get('torneo')
+  const codigoInvitado = searchParams.get('codigo') ?? ''
+  useEffect(() => {
+    if (!torneoInvitado || loading) return
+    // Sin sesión se manda a iniciar sesión conservando el enlace
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location } })
+      return
+    }
+    const t = tournaments.find(x => x._id === torneoInvitado)
+    const yaInscrito = registrations.some(r => r.torneo_id?._id === torneoInvitado)
+    // Se quita de la URL para que no se vuelva a abrir al recargar
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abre el formulario del enlace de invitación una sola vez
+    if (t && !yaInscrito && faseDe(t) === 'abiertas') handleOpenModal(t, codigoInvitado)
+  }, [torneoInvitado, codigoInvitado, loading, isAuthenticated, tournaments, registrations,
+    handleOpenModal, setSearchParams, navigate, location])
 
   const handleCloseModal = () => {
     if (paying) return
     setSelectedTournament(null)
   }
 
-  // El pago es simulado (no hay pasarela); la inscripción sí se guarda en el backend
+  // Primero se guarda la inscripción (aparta el cupo) y luego se paga
   const handlePayment = async () => {
     if (isFinished(selectedTournament)) {
       setPaymentError('Este torneo ya terminó, no se aceptan más inscripciones.')
@@ -259,27 +277,49 @@ function Tournaments() {
       setPaymentError('Solo queda lugar para un jugador sin pareja: inscríbete sin indicar pareja.')
       return
     }
-    const rawCard = payment.card.replace(/\s/g, '')
-    if (rawCard.length < 16 || !payment.holder || !payment.expiry || payment.cvv.length < 3) {
-      setPaymentError('Por favor completa todos los datos de pago.')
+    if (selectedTournament.privado && codigo.replace('-', '').length < 8) {
+      setPaymentError('Escribe el código de acceso de 8 caracteres que te dio la organización.')
       return
     }
     setPaymentError('')
     setPaying(true)
 
     try {
-      const res = await inscribirTorneoApi(selectedTournament._id, email ? { pareja_email: email } : {})
-      setSuccessText(res.data.inscripciones_cerradas
+      const res = await inscribirTorneoApi(selectedTournament._id, {
+        ...(email && { pareja_email: email }),
+        ...(selectedTournament.privado && { codigo })
+      })
+      const texto = res.data.inscripciones_cerradas
         ? '¡Inscripción confirmada! Se completaron los cupos y ya se organizaron las parejas.'
-        : '¡Inscripción confirmada exitosamente!')
+        : '¡Inscripción confirmada!'
       await Promise.all([loadTournaments(), loadRegistrations()])
+      if (selectedTournament.precio_inscripcion > 0) {
+        setPorPagar({ participanteId: res.data.participante._id, torneo: selectedTournament, texto })
+      } else {
+        mostrarExito(texto)
+      }
       setSelectedTournament(null)
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 3500)
     } catch (err) {
       setPaymentError(getErrorMessage(err, 'No se pudo completar la inscripción.'))
     } finally {
       setPaying(false)
+    }
+  }
+
+  const mostrarExito = (texto) => {
+    setSuccessText(texto)
+    setShowSuccess(true)
+    setTimeout(() => setShowSuccess(false), 4000)
+  }
+
+  const terminarPago = (pago) => {
+    const { texto } = porPagar
+    setPorPagar(null)
+    loadRegistrations()
+    if (!pago) {
+      mostrarExito('Quedaste inscrito. Puedes pagar la inscripción desde "Mis inscripciones".')
+    } else {
+      mostrarExito(pago.estado === 'aprobado' ? `${texto} Pago aprobado.` : `${texto} Paga en la sede antes del torneo.`)
     }
   }
 
@@ -362,6 +402,12 @@ function Tournaments() {
                         {tournament.tipo_torneo}
                       </span>
                       <EstadoBadge torneo={tournament} className="on-image" />
+                      {tournament.privado && (
+                        <span className="tournament-private-badge" title="Solo con código de acceso">
+                          <i className="material-icons">lock</i>
+                          Privado
+                        </span>
+                      )}
                       {registered && (
                         <div className="tournament-registered-badge">
                           <i className="material-icons">check_circle</i>
@@ -455,10 +501,12 @@ function Tournaments() {
                           className="tournament-btn"
                           onClick={() => handleOpenModal(tournament)}
                         >
-                          <i className="material-icons">how_to_reg</i>
-                          {isAuthenticated
-                            ? `Inscribirme — ${formatPrice(tournament.precio_inscripcion)}`
-                            : 'Inicia sesión para inscribirte'}
+                          <i className="material-icons">{tournament.privado ? 'vpn_key' : 'how_to_reg'}</i>
+                          {!isAuthenticated
+                            ? 'Inicia sesión para inscribirte'
+                            : tournament.privado
+                              ? 'Inscribirme con código'
+                              : `Inscribirme — ${formatPrice(tournament.precio_inscripcion)}`}
                         </button>
                       )}
                     </div>
@@ -573,6 +621,16 @@ function Tournaments() {
                                 ? 'Torneo finalizado'
                                 : reg.pago_confirmado ? 'Pago confirmado' : 'Pago pendiente'}
                           </span>
+                          {!reg.pago_confirmado && !reg.inscrito_por_pareja && t.precio_inscripcion > 0 &&
+                            !['cancelado', 'finalizado'].includes(estadoDe(t)) && (
+                            <button
+                              className="my-reg-pay-btn"
+                              onClick={() => setPorPagar({ participanteId: reg._id, torneo: t, texto: 'Inscripción pagada.' })}
+                            >
+                              <i className="material-icons">payment</i>
+                              Pagar
+                            </button>
+                          )}
                           {t.estado !== 'cancelado' && (
                             <button className="my-reg-bracket-btn" onClick={() => abrirCuadro(reg)}>
                               <i className="material-icons">account_tree</i>
@@ -608,8 +666,8 @@ function Tournaments() {
             <div className="tournament-modal-header">
               <div className="tournament-modal-steps">
                 <span className="modal-step active">
-                  <i className="material-icons">credit_card</i>
-                  Pago de inscripción
+                  <i className="material-icons">how_to_reg</i>
+                  Inscripción
                 </span>
               </div>
               <button className="tournament-modal-close" onClick={handleCloseModal}>
@@ -652,6 +710,30 @@ function Tournaments() {
                 </div>
               )}
 
+              {selectedTournament.privado && (
+                <div className="tournament-form-field tournament-code-field">
+                  <label>
+                    <i className="material-icons">vpn_key</i>
+                    Código de acceso
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="XXXX-XXXX"
+                    value={codigo}
+                    onChange={e => {
+                      setCodigo(formatCodigo(e.target.value))
+                      setPaymentError('')
+                    }}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <span className="tournament-form-hint">
+                    Este torneo es privado{selectedTournament.organizador ? ` de ${selectedTournament.organizador}` : ''}.
+                    Pide el código a la organización. Si alguien con código ya te inscribió como su pareja, no lo necesitas.
+                  </span>
+                </div>
+              )}
+
               <div className="tournament-form-field">
                 <label>Email de tu pareja (opcional)</label>
                 <input
@@ -666,75 +748,12 @@ function Tournaments() {
                 </span>
               </div>
 
-              <div className="credit-card-preview">
-                <div className="credit-card-chip">
-                  <i className="material-icons">contactless</i>
-                </div>
-                <div className="credit-card-number">
-                  {payment.card || '•••• •••• •••• ••••'}
-                </div>
-                <div className="credit-card-bottom">
-                  <div>
-                    <p className="credit-card-label">Titular</p>
-                    <p className="credit-card-value">
-                      {payment.holder || 'NOMBRE APELLIDO'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="credit-card-label">Vence</p>
-                    <p className="credit-card-value">{payment.expiry || 'MM/AA'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="tournament-form-field">
-                <label>Número de tarjeta</label>
-                <input
-                  type="text"
-                  placeholder="1234 5678 9012 3456"
-                  value={payment.card}
-                  maxLength={19}
-                  onChange={e => setPayment(p => ({ ...p, card: formatCard(e.target.value) }))}
-                />
-              </div>
-
-              <div className="tournament-form-field">
-                <label>Nombre del titular</label>
-                <input
-                  type="text"
-                  placeholder="Como aparece en la tarjeta"
-                  value={payment.holder}
-                  onChange={e => setPayment(p => ({ ...p, holder: e.target.value.toUpperCase() }))}
-                />
-              </div>
-
-              <div className="payment-row">
-                <div className="tournament-form-field">
-                  <label>Fecha de vencimiento</label>
-                  <input
-                    type="text"
-                    placeholder="MM/AA"
-                    value={payment.expiry}
-                    maxLength={5}
-                    onChange={e => setPayment(p => ({ ...p, expiry: formatExpiry(e.target.value) }))}
-                  />
-                </div>
-                <div className="tournament-form-field">
-                  <label>CVV</label>
-                  <input
-                    type="password"
-                    placeholder="•••"
-                    value={payment.cvv}
-                    maxLength={4}
-                    onChange={e => setPayment(p => ({ ...p, cvv: e.target.value.replace(/\D/g, '') }))}
-                  />
-                </div>
-              </div>
-
-              <p className="payment-disclaimer">
-                <i className="material-icons">lock</i>
-                Pago simulado — ningún dato de tarjeta se envía ni se guarda
-              </p>
+              {selectedTournament.precio_inscripcion > 0 && (
+                <p className="payment-disclaimer">
+                  <i className="material-icons">info</i>
+                  Al confirmar se aparta tu cupo y pasas a pagar (tarjeta, PSE, Nequi o en la sede).
+                </p>
+              )}
 
               <div className="payment-actions">
                 <button className="payment-back-btn" onClick={handleCloseModal} disabled={paying}>
@@ -749,8 +768,8 @@ function Tournaments() {
                     </>
                   ) : (
                     <>
-                      <i className="material-icons">payment</i>
-                      Pagar {formatPrice(selectedTournament.precio_inscripcion)}
+                      <i className="material-icons">{selectedTournament.precio_inscripcion > 0 ? 'arrow_forward' : 'check'}</i>
+                      {selectedTournament.precio_inscripcion > 0 ? 'Inscribirme y pagar' : 'Inscribirme'}
                     </>
                   )}
                 </button>
@@ -759,6 +778,19 @@ function Tournaments() {
 
           </div>
         </div>
+      )}
+
+      {porPagar && (
+        <PagoModal
+          concepto="torneo"
+          id={porPagar.participanteId}
+          monto={porPagar.torneo.precio_inscripcion}
+          titulo={`Inscripción · ${porPagar.torneo.nombre}`}
+          resumen={[['Fecha del torneo', formatDateLong(porPagar.torneo.fecha_inicio)]]}
+          efectivo="Pagar en la sede"
+          onTerminar={terminarPago}
+          onCerrar={() => terminarPago(null)}
+        />
       )}
 
       {cancelTarget && (

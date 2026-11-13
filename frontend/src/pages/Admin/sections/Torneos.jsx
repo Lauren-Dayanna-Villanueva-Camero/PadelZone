@@ -11,6 +11,7 @@ import {
   cerrarInscripcionesApi,
   reorganizarTorneoApi,
   exportarTorneoApi,
+  regenerarCodigoTorneoApi,
   getErrorMessage
 } from '../../../services/api'
 import { formatPrice, formatDateLong, formatDateShort, formatHour, toDateKey, addDaysKey } from '../../../utils/helpers'
@@ -18,6 +19,7 @@ import { useAdmin } from '../../../hooks/useAdmin'
 import { useAdminResource } from '../useAdminResource'
 import Cuadro from '../../../components/Cuadro/Cuadro'
 import HorariosPartidos from '../components/HorariosPartidos'
+import CodigoAcceso from '../../../components/CodigoAcceso/CodigoAcceso'
 import SolicitudesTorneo from '../components/SolicitudesTorneo'
 import {
   PageHeader, ErrorBanner, Loading, EmptyState, Modal, ConfirmDialog, Field
@@ -69,7 +71,8 @@ const emptyForm = {
   hora_fin: '20:00',
   duracion_partido_min: '90',
   canchas: [],
-  organizador: ''
+  organizador: '',
+  privado: false
 }
 
 const toForm = (t) => ({
@@ -87,7 +90,8 @@ const toForm = (t) => ({
   duracion_partido_min: String(t.duracion_partido_min || 90),
   // getTorneos devuelve las canchas con nombre; aquí basta el id
   canchas: (t.canchas || []).map(c => c._id ?? c),
-  organizador: t.organizador || ''
+  organizador: t.organizador || '',
+  privado: Boolean(t.privado)
 })
 
 // Acciones que cambian el estado o la organización: todas piden confirmación
@@ -222,7 +226,8 @@ function Torneos() {
       hora_fin: form.hora_fin,
       duracion_partido_min: Number(form.duracion_partido_min),
       canchas: form.canchas,
-      organizador: form.organizador.trim()
+      organizador: form.organizador.trim(),
+      privado: form.privado
     }
 
     setSaving(true)
@@ -459,6 +464,13 @@ function Torneos() {
                           </div>
                         )}
                         {t.organizador && <div className="tor-insc">Organiza: {t.organizador}</div>}
+                        {t.privado && (
+                          <div className="tor-insc">
+                            <span className="adm-badge adm-badge--info" title="Solo se inscribe quien tenga el código">
+                              <i className="material-icons tor-lock">lock</i> Privado · {t.codigo_acceso}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div className="tor-cupo" title={`${t.participantes_inscritos} jugadores inscritos`}>
@@ -566,6 +578,19 @@ function Torneos() {
               <input value={form.organizador} onChange={set('organizador')} placeholder="Opcional" />
             </Field>
             <div className="adm-field adm-field--full">
+              <label className="adm-check">
+                <input
+                  type="checkbox"
+                  checked={form.privado}
+                  onChange={e => setForm(f => ({ ...f, privado: e.target.checked }))}
+                />
+                Torneo privado: solo se inscribe quien tenga el código de acceso
+              </label>
+              <span className="adm-field-hint">
+                Al guardarlo se genera un código (lo ves en el detalle del torneo) para repartir entre los empleados o miembros de la organización.
+              </span>
+            </div>
+            <div className="adm-field adm-field--full">
               <span className="adm-field-label">Canchas del torneo</span>
               <div className="tor-canchas">
                 {canchas.map(c => (
@@ -599,6 +624,19 @@ function Torneos() {
               {botonExportar(detalle)}
             </div>
           </div>
+
+          {detalle.privado && detalle.codigo_acceso && (
+            <CodigoAcceso
+              key={detalle._id}
+              codigo={detalle.codigo_acceso}
+              torneoId={detalle._id}
+              onRegenerar={async () => {
+                const res = await regenerarCodigoTorneoApi(detalle._id)
+                reload()
+                return res.data.codigo_acceso
+              }}
+            />
+          )}
 
           <div className="tor-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'organizacion'} className={tab === 'organizacion' ? 'is-active' : ''} onClick={() => setTab('organizacion')}>

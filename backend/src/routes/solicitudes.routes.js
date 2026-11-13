@@ -6,7 +6,8 @@ import {
   cancelarSolicitud,
   getSolicitudes,
   aprobarSolicitud,
-  rechazarSolicitud
+  rechazarSolicitud,
+  regenerarCodigoSolicitud
 } from '../controllers/solicitudes.controller.js'
 import { authRequired, adminRequired } from '../middlewares/auth.middleware.js'
 import { validateId } from '../middlewares/validate.middleware.js'
@@ -18,6 +19,7 @@ router.post('/cotizar', authRequired, cotizar)
 router.get('/mias', authRequired, getMisSolicitudes)
 router.post('/', authRequired, createSolicitud)
 router.put('/:id/cancelar', validateId(), authRequired, cancelarSolicitud)
+router.put('/:id/codigo', validateId(), authRequired, regenerarCodigoSolicitud)
 
 // Solo admin
 router.get('/', authRequired, adminRequired, getSolicitudes)

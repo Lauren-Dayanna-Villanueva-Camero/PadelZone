@@ -92,6 +92,8 @@ export const getMisPartidosApi = () => api.get('/torneos/mis-partidos')
 export const setHorarioPartidoApi = (torneoId, partidoId, data) =>
   api.put(`/torneos/${torneoId}/partidos/${partidoId}/horario`, data)
 export const reprogramarHorariosApi = (torneoId) => api.put(`/torneos/${torneoId}/reprogramar`)
+// Torneos privados: el admin genera un código de acceso nuevo (el anterior deja de servir)
+export const regenerarCodigoTorneoApi = (id) => api.put(`/torneos/${id}/codigo`)
 
 // ─── SOLICITUDES DE TORNEO (empresas) ───────────────
 export const cotizarSolicitudApi = (data) => api.post('/solicitudes-torneo/cotizar', data)
@@ -101,6 +103,26 @@ export const cancelarSolicitudApi = (id) => api.put(`/solicitudes-torneo/${id}/c
 export const getSolicitudesApi = () => api.get('/solicitudes-torneo')
 export const aprobarSolicitudApi = (id, respuesta) => api.put(`/solicitudes-torneo/${id}/aprobar`, { respuesta })
 export const rechazarSolicitudApi = (id, respuesta) => api.put(`/solicitudes-torneo/${id}/rechazar`, { respuesta })
+// La empresa genera un código de acceso nuevo para su torneo privado
+export const regenerarCodigoSolicitudApi = (id) => api.put(`/solicitudes-torneo/${id}/codigo`)
+
+// ─── PAGOS ──────────────────────────────────────────
+// concepto: 'reserva' | 'pedido' | 'torneo' | 'clase'; id: la reserva, el pedido,
+// la inscripción al torneo (participante) o la inscripción a la clase
+export const getPagosConfigApi = () => api.get('/pagos/config')
+export const iniciarPagoApi = (concepto, id, metodo) => api.post('/pagos', { concepto, id, metodo })
+export const simularPagoApi = (pagoId, datos) => api.post(`/pagos/${pagoId}/simular`, datos)
+export const verificarPagoWompiApi = (transaccionId) => api.get('/pagos/wompi/verificar', { params: { id: transaccionId } })
+export const getMisPagosApi = () => api.get('/pagos/mios')
+export const getPagoApi = (id) => api.get(`/pagos/${id}`)
+export const getPagosApi = (filtros) => api.get('/pagos', { params: filtros })
+export const confirmarPagoApi = (id) => api.put(`/pagos/${id}/confirmar`)
+export const anularPagoApi = (id, motivo) => api.put(`/pagos/${id}/anular`, { motivo })
+
+// ─── CALENDARIO ─────────────────────────────────────
+// Admin: todo el club (filtro opcional por cancha). Usuario: lo suyo
+export const getCalendarioApi = (desde, hasta, canchaId) =>
+  api.get('/calendario', { params: { desde, hasta, ...(canchaId ? { cancha_id: canchaId } : {}) } })
 
 // ─── CLASES ─────────────────────────────────────────
 export const getMisClasesApi = () => api.get('/clases/mis-inscripciones')

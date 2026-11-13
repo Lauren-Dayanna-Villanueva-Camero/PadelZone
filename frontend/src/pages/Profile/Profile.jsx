@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import {
   getReservasApi,
   cancelarReservaApi,
   getMisInscripcionesApi,
   getPedidosApi,
+  getMisPagosApi,
   getErrorMessage
 } from '../../services/api'
 import {
@@ -16,7 +17,12 @@ import {
   toDateKey,
   todayKey
 } from '../../utils/helpers'
+import PagoModal from '../../components/Pago/PagoModal'
+import Calendario from '../../components/Calendario/Calendario'
+import { CONCEPTOS, ESTADOS_PAGO, textoMetodo, formatFechaHora } from '../../components/Pago/pagoUtils'
 import './Profile.css'
+
+const TABS = ['reservations', 'tournaments', 'orders', 'pagos', 'calendario', 'data']
 
 const torneoEstados = {
   activo: 'Inscripciones abiertas',
@@ -44,8 +50,8 @@ const esMio = (doc, userId) => {
   return !owner || String(owner) === String(userId)
 }
 
-// Carga una lista al montar con su estado de carga y error
-function useLista(fetcher, errorText, userId) {
+// Carga una lista al montar (y cada vez que cambia `version`) con su estado de carga y error
+function useLista(fetcher, errorText, userId, version = 0) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,7 +60,8 @@ function useLista(fetcher, errorText, userId) {
     try {
       const res = await fetcher()
       if (!isCancelled()) {
-        setItems(res.data.filter(d => esMio(d, userId)))
+        // Sin userId el endpoint ya devuelve solo lo del usuario (p. ej. /pagos/mios)
+        setItems(userId ? res.data.filter(d => esMio(d, userId)) : res.data)
         setError('')
       }
     } catch (err) {
@@ -69,7 +76,7 @@ function useLista(fetcher, errorText, userId) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga de datos al montar
     load(() => cancelled)
     return () => { cancelled = true }
-  }, [load])
+  }, [load, version])
 
   return { items, setItems, loading, error }
 }
@@ -96,22 +103,30 @@ function Profile() {
   const navigate = useNavigate()
 
   const userId = user?.id
+  // Sube después de pagar algo para volver a cargar las listas
+  const [recargas, setRecargas] = useState(0)
   const {
     items: reservations,
     setItems: setReservations,
     loading: loadingRes,
     error: resError
-  } = useLista(getReservasApi, 'No se pudieron cargar tus reservas', userId)
+  } = useLista(getReservasApi, 'No se pudieron cargar tus reservas', userId, recargas)
   // mis-inscripciones ya filtra por el usuario de la sesión
-  const torneos = useLista(getMisInscripcionesApi, 'No se pudieron cargar tus torneos', null)
-  const pedidos = useLista(getPedidosApi, 'No se pudieron cargar tus pedidos', userId)
+  const torneos = useLista(getMisInscripcionesApi, 'No se pudieron cargar tus torneos', null, recargas)
+  const pedidos = useLista(getPedidosApi, 'No se pudieron cargar tus pedidos', userId, recargas)
+  const pagos = useLista(getMisPagosApi, 'No se pudieron cargar tus pagos', null, recargas)
 
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({ nombre: '', apellido: '', telefono: '' })
   const [editError, setEditError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const [activeTab, setActiveTab] = useState('reservations')
+  // Pestaña en la URL (/perfil?tab=pagos) para poder enlazarla
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reservations'
+  const setActiveTab = (tab) => setSearchParams(tab === 'reservations' ? {} : { tab }, { replace: true })
+  // Lo que se va a pagar en el PagoModal
+  const [cobro, setCobro] = useState(null)
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelError, setCancelError] = useState('')
 
@@ -169,12 +184,48 @@ function Profile() {
   const active = reservations.filter(r => r.estado !== 'cancelada')
   const upcoming = active.filter(r => toDateKey(r.fecha) >= today)
   const past = reservations.filter(r => !upcoming.includes(r))
-  const totalSpent = active.reduce((acc, r) => acc + (r.precio || 0), 0)
+  const totalSpent = pagos.items.filter(p => p.estado === 'aprobado').reduce((acc, p) => acc + p.monto, 0)
 
   // Si el torneo fue borrado, torneo_id llega en null
   const misTorneos = torneos.items.filter(r => r.torneo_id)
   const torneosVigentes = misTorneos.filter(r => ['activo', 'en_curso'].includes(estadoTorneo(r.torneo_id)))
   const pedidosAbiertos = pedidos.items.filter(p => p.estado === 'pendiente' || p.estado === 'pagado')
+
+  // ─── Pagos ───
+  // Pagos en efectivo registrados (se pagan en la sede; no hace falta volver a pagar)
+  const enEfectivo = new Set(pagos.items
+    .filter(p => p.estado === 'pendiente' && p.proveedor === 'manual')
+    .map(p => `${p.concepto}:${p.referencia_id}`))
+
+  const cobroReserva = (r) => ({
+    concepto: 'reserva', id: r._id, monto: r.precio, efectivo: 'Pagar en la sede',
+    titulo: `Reserva ${r.cancha_id?.nombre ?? ''}`,
+    resumen: [['Fecha', formatDateLong(r.fecha)], ['Horario', `${r.hora_inicio} – ${r.hora_fin}`]]
+  })
+  const cobroPedido = (p) => ({
+    concepto: 'pedido', id: p._id, monto: p.precio_total, efectivo: 'Contraentrega',
+    titulo: `Pedido #${p._id.slice(-6).toUpperCase()}`,
+    resumen: [['Entrega', `${p.direccion_envio ?? ''}, ${p.ciudad ?? ''}`]]
+  })
+  const cobroTorneo = (reg) => ({
+    concepto: 'torneo', id: reg._id, monto: reg.torneo_id.precio_inscripcion, efectivo: 'Pagar en la sede',
+    titulo: `Inscripción · ${reg.torneo_id.nombre}`,
+    resumen: [['Fecha del torneo', formatDateLong(reg.torneo_id.fecha_inicio)]]
+  })
+
+  const reservaPorPagar = (r) => r.estado !== 'cancelada' && !r.pagada && toDateKey(r.fecha) >= today
+  const torneoPorPagar = (reg) => !reg.pago_confirmado && !reg.inscrito_por_pareja &&
+    reg.torneo_id.precio_inscripcion > 0 && ['activo', 'en_curso'].includes(estadoTorneo(reg.torneo_id))
+  const porPagar = [
+    ...reservations.filter(reservaPorPagar).map(r => ({ key: `r${r._id}`, icon: 'event_available', texto: `Reserva ${r.cancha_id?.nombre ?? ''} · ${toDateKey(r.fecha)} · ${r.hora_inicio}`, cobro: cobroReserva(r), apartada: r.estado === 'pendiente' ? r.expira_en : null })),
+    ...pedidos.items.filter(p => p.estado === 'pendiente').map(p => ({ key: `p${p._id}`, icon: 'shopping_bag', texto: `Pedido #${p._id.slice(-6).toUpperCase()}`, cobro: cobroPedido(p) })),
+    ...misTorneos.filter(torneoPorPagar).map(reg => ({ key: `t${reg._id}`, icon: 'emoji_events', texto: `Inscripción · ${reg.torneo_id.nombre}`, cobro: cobroTorneo(reg) }))
+  ].map(item => ({ ...item, efectivo: enEfectivo.has(`${item.cobro.concepto}:${item.cobro.id}`) }))
+
+  const terminarCobro = () => {
+    setCobro(null)
+    setRecargas(n => n + 1)
+  }
 
   return (
     <div className="profile-page">
@@ -224,7 +275,7 @@ function Profile() {
             <i className="material-icons">payments</i>
             <div>
               <span className="stat-number">{formatPrice(totalSpent)}</span>
-              <span className="stat-label">Total gastado</span>
+              <span className="stat-label">Total pagado</span>
             </div>
           </div>
         </div>
@@ -260,6 +311,23 @@ function Profile() {
             {pedidosAbiertos.length > 0 && (
               <span className="tab-badge">{pedidosAbiertos.length}</span>
             )}
+          </button>
+          <button
+            className={`profile-tab ${activeTab === 'pagos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pagos')}
+          >
+            <i className="material-icons">payments</i>
+            Pagos
+            {porPagar.filter(p => !p.efectivo).length > 0 && (
+              <span className="tab-badge tab-badge--warn">{porPagar.filter(p => !p.efectivo).length}</span>
+            )}
+          </button>
+          <button
+            className={`profile-tab ${activeTab === 'calendario' ? 'active' : ''}`}
+            onClick={() => setActiveTab('calendario')}
+          >
+            <i className="material-icons">calendar_month</i>
+            Calendario
           </button>
           <button
             className={`profile-tab ${activeTab === 'data' ? 'active' : ''}`}
@@ -301,6 +369,8 @@ function Profile() {
                           res={res}
                           upcoming={true}
                           onCancel={() => { setCancelError(''); setCancelTarget(res._id) }}
+                          onPagar={reservaPorPagar(res) ? () => setCobro(cobroReserva(res)) : null}
+                          enSede={enEfectivo.has(`reserva:${res._id}`)}
                         />
                       ))}
                     </div>
@@ -347,7 +417,13 @@ function Profile() {
               </div>
             ) : (
               <div className="res-cards-grid">
-                {misTorneos.map(reg => <TournamentCard key={reg._id} reg={reg} />)}
+                {misTorneos.map(reg => (
+                  <TournamentCard
+                    key={reg._id}
+                    reg={reg}
+                    onPagar={torneoPorPagar(reg) ? () => setCobro(cobroTorneo(reg)) : null}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -369,11 +445,75 @@ function Profile() {
               </div>
             ) : (
               <div className="order-list">
-                {pedidos.items.map(p => <OrderCard key={p._id} pedido={p} />)}
+                {pedidos.items.map(p => (
+                  <OrderCard
+                    key={p._id}
+                    pedido={p}
+                    onPagar={p.estado === 'pendiente' ? () => setCobro(cobroPedido(p)) : null}
+                    contraentrega={enEfectivo.has(`pedido:${p._id}`)}
+                  />
+                ))}
               </div>
             )}
           </div>
         )}
+
+        {/* Tab: Pagos */}
+        {activeTab === 'pagos' && (
+          <div className="profile-reservations">
+            {porPagar.length > 0 && (
+              <>
+                <h6 className="res-group-title">
+                  <i className="material-icons">pending_actions</i>
+                  Por pagar
+                </h6>
+                <ul className="pagos-por-pagar">
+                  {porPagar.map(item => (
+                    <li key={item.key}>
+                      <i className="material-icons">{item.icon}</i>
+                      <div>
+                        <span className="pagos-por-pagar-texto">{item.texto}</span>
+                        <span className="pagos-por-pagar-sub">
+                          {item.efectivo
+                            ? 'Elegiste pagar en efectivo · también puedes pagar en línea'
+                            : item.apartada
+                              ? `Apartada hasta las ${new Date(item.apartada).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}`
+                              : 'Pago pendiente'}
+                        </span>
+                      </div>
+                      <strong>{formatPrice(item.cobro.monto)}</strong>
+                      <button className="pagos-pagar-btn" onClick={() => setCobro(item.cobro)}>
+                        <i className="material-icons">payment</i>
+                        Pagar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <h6 className="res-group-title past">
+              <i className="material-icons">receipt_long</i>
+              Historial de pagos
+            </h6>
+            {pagos.loading || pagos.error ? (
+              <ListState loading={pagos.loading} error={pagos.error} loadingText="Cargando pagos..." />
+            ) : pagos.items.length === 0 ? (
+              <div className="profile-empty">
+                <i className="material-icons">receipt_long</i>
+                <h5>Aún no tienes pagos</h5>
+                <p>Los comprobantes de tus reservas, compras, torneos y clases aparecerán aquí</p>
+              </div>
+            ) : (
+              <div className="pagos-historial">
+                {pagos.items.map(p => <PagoRow key={p._id} pago={p} />)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Calendario */}
+        {activeTab === 'calendario' && <Calendario />}
 
         {/* Tab: Datos */}
         {activeTab === 'data' && (
@@ -454,12 +594,40 @@ function Profile() {
                     <p className="profile-data-value">{user?.telefono || '—'}</p>
                   </div>
                 </div>
+                <div className="profile-data-row">
+                  <div className="profile-data-icon">
+                    <i className="material-icons">key</i>
+                  </div>
+                  <div>
+                    <p className="profile-data-label">Inicio de sesión</p>
+                    <p className="profile-data-value">
+                      {user?.google && user?.tiene_password
+                        ? 'Con Google o con tu email y contraseña'
+                        : user?.google
+                          ? 'Con Google'
+                          : 'Con tu email y contraseña'}
+                    </p>
+                    {user?.google && !user?.tiene_password && (
+                      <p className="profile-data-label">
+                        Si quieres entrar también con contraseña, créala desde "¿Olvidaste tu contraseña?" en la página de inicio de sesión.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         )}
 
       </div>
+
+      {cobro && (
+        <PagoModal
+          {...cobro}
+          onTerminar={terminarCobro}
+          onCerrar={terminarCobro}
+        />
+      )}
 
       {/* Modal cancelar */}
       {cancelTarget && (
@@ -493,10 +661,10 @@ function Profile() {
   )
 }
 
-function ReservationCard({ res, upcoming, onCancel }) {
+function ReservationCard({ res, upcoming, onCancel, onPagar, enSede }) {
   const cancha = res.cancha_id
   const cancelled = res.estado === 'cancelada'
-  const status = cancelled ? 'Cancelada' : upcoming ? 'Próxima' : 'Completada'
+  const status = cancelled ? 'Cancelada' : res.estado === 'pendiente' ? 'Por pagar' : upcoming ? 'Próxima' : 'Completada'
 
   return (
     <div className={`res-card ${upcoming ? 'upcoming' : 'past'}`}>
@@ -526,7 +694,23 @@ function ReservationCard({ res, upcoming, onCancel }) {
               {cancha.tipo}
             </p>
           )}
+          {!cancelled && (
+            <p>
+              <i className="material-icons">payments</i>
+              {res.pagada
+                ? <span className="pago-chip pagado"><i className="material-icons">check_circle</i>Pagada</span>
+                : res.estado === 'pendiente'
+                  ? <span className="pago-chip pendiente"><i className="material-icons">timer</i>Paga antes de las {new Date(res.expira_en).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}</span>
+                  : <span className="pago-chip pendiente"><i className="material-icons">storefront</i>{enSede ? 'Pagas en la sede' : 'Sin pagar'}</span>}
+            </p>
+          )}
         </div>
+        {onPagar && (
+          <button className="res-card-pay-btn" onClick={onPagar}>
+            <i className="material-icons">payment</i>
+            Pagar {formatPrice(res.precio)}
+          </button>
+        )}
         {upcoming && onCancel && (
           <button className="res-card-cancel-btn" onClick={onCancel}>
             <i className="material-icons">cancel</i>
@@ -538,7 +722,7 @@ function ReservationCard({ res, upcoming, onCancel }) {
   )
 }
 
-function TournamentCard({ reg }) {
+function TournamentCard({ reg, onPagar }) {
   const t = reg.torneo_id
   const estado = estadoTorneo(t)
   const vigente = estado === 'activo' || estado === 'en_curso'
@@ -582,12 +766,18 @@ function TournamentCard({ reg }) {
               : reg.pago_confirmado ? 'Pago confirmado' : 'Pago pendiente'}
           </p>
         </div>
+        {onPagar && (
+          <button className="res-card-pay-btn" onClick={onPagar}>
+            <i className="material-icons">payment</i>
+            Pagar inscripción
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-function OrderCard({ pedido }) {
+function OrderCard({ pedido, onPagar, contraentrega }) {
   return (
     <div className={`order-card ${pedido.estado === 'cancelado' ? 'cancelled' : ''}`}>
       <div className="order-card-head">
@@ -618,6 +808,49 @@ function OrderCard({ pedido }) {
           <i className="material-icons">local_shipping</i>
           {pedido.operador_logistico ? `${pedido.operador_logistico} · ` : ''}Guía {pedido.numero_guia}
         </p>
+      )}
+
+      {onPagar && (
+        <div className="order-pay">
+          <span>{contraentrega ? 'Pagas contraentrega (o en línea ahora)' : 'Este pedido aún no está pagado'}</span>
+          <button className="pagos-pagar-btn" onClick={onPagar}>
+            <i className="material-icons">payment</i>
+            Pagar {formatPrice(pedido.precio_total)}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Una fila del historial de pagos; al tocarla se ve el comprobante
+function PagoRow({ pago }) {
+  const [abierto, setAbierto] = useState(false)
+  const estado = ESTADOS_PAGO[pago.estado]
+  return (
+    <div className={`pago-row ${abierto ? 'abierto' : ''}`}>
+      <button className="pago-row-head" onClick={() => setAbierto(v => !v)} aria-expanded={abierto}>
+        <i className="material-icons pago-row-icono">{CONCEPTOS[pago.concepto]?.icon}</i>
+        <div className="pago-row-texto">
+          <span>{pago.descripcion}</span>
+          <small>{formatFechaHora(pago.createdAt)} · {textoMetodo(pago)}</small>
+        </div>
+        <strong>{formatPrice(pago.monto)}</strong>
+        <span className={`pago-chip ${pago.estado}`}>
+          <i className="material-icons">{estado?.icon}</i>{estado?.label}
+        </span>
+        <i className="material-icons pago-row-flecha">expand_more</i>
+      </button>
+      {abierto && (
+        <dl className="pago-row-detalle">
+          <div><dt>Referencia</dt><dd>{pago.referencia}</dd></div>
+          <div><dt>Método</dt><dd>{textoMetodo(pago)}</dd></div>
+          {pago.pagado_en && <div><dt>Pagado</dt><dd>{formatFechaHora(pago.pagado_en)}</dd></div>}
+          {pago.mensaje && <div><dt>Nota</dt><dd>{pago.mensaje}</dd></div>}
+          {pago.estado === 'pendiente' && pago.proveedor === 'manual' && (
+            <div><dt>Cómo pagar</dt><dd>Muestra esta referencia en la recepción de PadelZone (o al recibir tu pedido).</dd></div>
+          )}
+        </dl>
       )}
     </div>
   )

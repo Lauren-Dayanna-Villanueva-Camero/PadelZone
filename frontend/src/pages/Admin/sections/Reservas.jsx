@@ -101,6 +101,7 @@ function Reservas() {
                   <th>Cliente</th>
                   <th>Precio</th>
                   <th>Estado</th>
+                  <th>Pago</th>
                   <th></th>
                 </tr>
               </thead>
@@ -115,7 +116,17 @@ function Reservas() {
                       <div className="adm-muted">{r.usuario_id?.email}</div>
                     </td>
                     <td>{formatPrice(r.precio)}</td>
-                    <td><span className={`adm-badge adm-badge--${estadoTone[r.estado]}`}>{r.estado}</span></td>
+                    <td>
+                      <span className={`adm-badge adm-badge--${estadoTone[r.estado]}`}>
+                        {r.estado === 'pendiente' ? 'esperando pago' : r.estado}
+                      </span>
+                    </td>
+                    <td>
+                      {r.pagada
+                        ? <span className="adm-badge adm-badge--ok">Pagada</span>
+                        : r.estado === 'cancelada' ? <span className="adm-muted">—</span>
+                          : <span className="adm-badge adm-badge--warn">Sin pagar</span>}
+                    </td>
                     <td className="adm-actions">
                       {r.estado !== 'cancelada' && (
                         <button

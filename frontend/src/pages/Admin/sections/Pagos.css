@@ -1,0 +1,79 @@
+.pagos-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.4fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pagos-kpi {
+  background: #fff;
+  border: 1px solid #e6e9f2;
+  border-left: 4px solid #1e7e34;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+}
+
+button.pagos-kpi { cursor: pointer; }
+button.pagos-kpi:hover { background: #fafbff; }
+.pagos-kpi.activo { box-shadow: 0 0 0 2px #1e3c72; }
+.pagos-kpi--warn { border-left-color: #ef6c00; }
+.pagos-kpi--danger { border-left-color: #c62828; }
+.pagos-kpi strong { font-size: 1.35rem; color: #010231; }
+.pagos-kpi-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #6b7280; }
+.pagos-metodos { border-left-color: #1e3c72; gap: 6px; }
+
+.pagos-barra {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.pagos-barra-fondo { background: #eef1f8; border-radius: 4px; height: 8px; overflow: hidden; }
+.pagos-barra-fondo div { background: #1e3c72; height: 100%; border-radius: 4px; }
+.pagos-barra-valor { font-weight: 600; color: #333; }
+
+.pagos-ref { font-size: 0.78rem; background: #f2f4f8; border-radius: 4px; padding: 2px 6px; white-space: nowrap; }
+
+.pagos-concepto { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.pagos-concepto .material-icons { font-size: 16px; color: #1e3c72; }
+
+.pagos-detalle { margin: 0 0 12px; }
+.pagos-detalle div { display: grid; grid-template-columns: 130px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f2f7; }
+.pagos-detalle dt { color: #6b7280; font-size: 0.85rem; }
+.pagos-detalle dd { margin: 0; font-size: 0.9rem; word-break: break-word; }
+
+@media (max-width: 1100px) {
+  .pagos-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .pagos-resumen { grid-template-columns: 1fr; }
+}
+
+/* Filtros: Materialize pone width:100% y borde inferior a inputs/selects */
+.adm-toolbar.pagos-filtros input,
+.adm-toolbar.pagos-filtros select,
+.adm-toolbar.pagos-filtros input[type="search"]:not(.browser-default),
+.adm-toolbar.pagos-filtros input[type="date"]:not(.browser-default) {
+  width: auto;
+  height: 40px;
+  border: 1px solid #d5d8e3;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  font-size: 0.9rem;
+  box-shadow: none;
+  box-sizing: border-box;
+  margin: 0;
+  flex: 0 1 auto;
+}
+.adm-toolbar.pagos-filtros input[type="search"]:not(.browser-default) { flex: 1 1 220px; min-width: 200px; }
+.adm-toolbar.pagos-filtros select { min-width: 150px; }
+.adm-toolbar.pagos-filtros input[type="date"]:not(.browser-default) { min-width: 150px; }

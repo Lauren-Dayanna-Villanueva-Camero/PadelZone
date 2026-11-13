@@ -87,6 +87,20 @@ const torneoSchema = new mongoose.Schema({
     default: ''
   },
 
+  // Torneo privado (normalmente de una empresa): solo se inscribe quien tenga el
+  // código de acceso. El código no sale en las consultas salvo que se pida con
+  // select('+codigo_acceso') (admin y empresa organizadora)
+  privado: {
+    type: Boolean,
+    default: false
+  },
+
+  codigo_acceso: {
+    type: String,
+    default: null,
+    select: false
+  },
+
   solicitud_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'SolicitudTorneo',

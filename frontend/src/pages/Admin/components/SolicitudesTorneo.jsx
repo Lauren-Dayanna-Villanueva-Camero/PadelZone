@@ -101,7 +101,10 @@ function SolicitudesTorneo({ solicitudes, loading, error, reload, onAprobada }) 
                   <tr key={s._id}>
                     <td>
                       <strong>{s.empresa.nombre}</strong>
-                      <div className="adm-muted">{s.nombre_torneo}</div>
+                      <div className="adm-muted">
+                        {s.nombre_torneo}
+                        {s.privado && <i className="material-icons tor-lock" title="Torneo privado (con código)"> lock</i>}
+                      </div>
                     </td>
                     <td className="adm-muted">
                       {formatDateShort(s.fecha_inicio)} – {formatDateShort(s.fecha_fin)}
@@ -146,6 +149,11 @@ function SolicitudesTorneo({ solicitudes, loading, error, reload, onAprobada }) 
             <Dato icon="emoji_events" label="Torneo">
               {detalle.nombre_torneo} ({detalle.tipo_torneo}) · hasta {detalle.cupo_maximo_parejas} parejas ·
               inscripción {formatPrice(detalle.precio_inscripcion)}
+            </Dato>
+            <Dato icon={detalle.privado ? 'lock' : 'public'} label="Acceso">
+              {detalle.privado
+                ? <>Privado: solo con código de acceso{detalle.torneo_id?.codigo_acceso && <> · código <strong>{detalle.torneo_id.codigo_acceso}</strong></>}</>
+                : 'Abierto a cualquier usuario de PadelZone'}
             </Dato>
             <Dato icon="calendar_today" label="Días y franja">
               {formatDateLong(detalle.fecha_inicio)} – {formatDateLong(detalle.fecha_fin)} ·

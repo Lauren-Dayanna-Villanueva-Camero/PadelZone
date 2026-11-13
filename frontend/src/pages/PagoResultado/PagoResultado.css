@@ -1,0 +1,26 @@
+.pago-resultado-page {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 16px 40px;
+  background: #f4f6fb;
+}
+
+.pago-resultado-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(1, 2, 49, 0.12);
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.pago-resultado-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pago-resultado-acciones a { text-decoration: none; }

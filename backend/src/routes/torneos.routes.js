@@ -16,12 +16,21 @@ import {
   setGanadorPartido,
   setHorarioPartido,
   reprogramarHorarios,
-  getMisPartidos
+  getMisPartidos,
+  regenerarCodigo
 } from '../controllers/torneos.controller.js'
 import { authRequired, adminRequired, optionalAuth } from '../middlewares/auth.middleware.js'
 import { validateId } from '../middlewares/validate.middleware.js'
+import { rateLimit } from '../middlewares/rateLimit.middleware.js'
 
 const router = Router()
+
+// Evita adivinar a la fuerza el código de un torneo privado
+const limiteInscripcion = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: 'Demasiados intentos de inscripción. Espera unos minutos e inténtalo de nuevo.'
+})
 
 // Las rutas fijas de un solo segmento deben ir antes de '/:id'; si no, Express
 // tomaría 'mis-inscripciones' como un id (y validateId respondería 400)
@@ -29,7 +38,7 @@ router.get('/mis-inscripciones', authRequired, getMisInscripciones)
 router.get('/mis-partidos', authRequired, getMisPartidos)
 
 // Rutas públicas (con sesión opcional: el admin y los participantes ven más datos)
-router.get('/', getTorneos)
+router.get('/', optionalAuth, getTorneos)
 router.get('/:id', validateId(), optionalAuth, getTorneoById)
 
 // Rutas solo admin
@@ -41,13 +50,14 @@ router.put('/:id/reorganizar', validateId(), authRequired, adminRequired, reorga
 router.get('/:id/exportar', validateId(), authRequired, adminRequired, exportarTorneo)
 router.put('/:id/partidos/:partidoId', validateId(), validateId('partidoId'), authRequired, adminRequired, setGanadorPartido)
 router.put('/:id/partidos/:partidoId/horario', validateId(), validateId('partidoId'), authRequired, adminRequired, setHorarioPartido)
+router.put('/:id/codigo', validateId(), authRequired, adminRequired, regenerarCodigo)
 router.put('/:id/reprogramar', validateId(), authRequired, adminRequired, reprogramarHorarios)
 router.put('/:id/participantes/:participanteId', validateId(), validateId('participanteId'), authRequired, adminRequired, updateParticipante)
 
 // Rutas usuario autenticado
 // El cuadro exige sesión: el controller comprueba que sea admin o participante
 router.get('/:id/cuadro', validateId(), authRequired, getCuadro)
-router.post('/:id/inscribir', validateId(), authRequired, inscribirParticipante)
+router.post('/:id/inscribir', validateId(), limiteInscripcion, authRequired, inscribirParticipante)
 router.delete('/:id/cancelar-inscripcion', validateId(), authRequired, cancelarInscripcion)
 
 export default router

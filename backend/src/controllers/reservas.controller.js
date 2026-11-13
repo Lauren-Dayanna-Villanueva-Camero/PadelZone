@@ -3,6 +3,7 @@ import Reserva from '../models/reserva.model.js'
 import Cancha from '../models/cancha.model.js'
 import { reservaSchema } from '../schema/reserva.schema.js'
 import { bloqueosDeTorneos } from '../libs/horarios.js'
+import { vencerReservasPendientes, cancelarPagosPendientes, MINUTOS_PARA_PAGAR } from '../libs/pagos.js'
 
 // GET /api/reservas/ocupados?cancha_id=...&fecha=YYYY-MM-DD — público
 // Devuelve solo los rangos ocupados, sin datos de usuarios. Incluye las franjas
@@ -15,6 +16,7 @@ export const getHorariosOcupados = async (req, res) => {
       return res.status(400).json({ message: 'Parámetros cancha_id y fecha requeridos' })
     }
 
+    await vencerReservasPendientes()
     const ocupados = await Reserva.find({
       cancha_id,
       fecha: new Date(fecha),
@@ -32,6 +34,7 @@ export const getHorariosOcupados = async (req, res) => {
 // GET /api/reservas — admin ve todas, usuario ve las suyas
 export const getReservas = async (req, res) => {
   try {
+    await vencerReservasPendientes()
     const filter = req.user.rol === 'admin'
       ? {}
       : { usuario_id: req.user._id }
@@ -108,7 +111,8 @@ export const createReserva = async (req, res) => {
       return res.status(404).json({ message: 'Cancha no encontrada o inactiva' })
     }
 
-    // Verificar que no haya conflicto de horario
+    // Verificar que no haya conflicto de horario (antes se liberan las vencidas sin pagar)
+    await vencerReservasPendientes()
     const conflicto = await Reserva.findOne({
       cancha_id,
       fecha: new Date(fecha),
@@ -146,7 +150,10 @@ export const createReserva = async (req, res) => {
       hora_inicio,
       hora_fin,
       precio,
-      estado: 'confirmada'
+      // Queda apartada mientras se paga; si no se paga (ni se elige pagar en la sede)
+      // antes del plazo, se cancela sola
+      estado: 'pendiente',
+      expira_en: new Date(Date.now() + MINUTOS_PARA_PAGAR * 60 * 1000)
     })
 
     await newReserva.save()
@@ -156,7 +163,7 @@ export const createReserva = async (req, res) => {
       .populate('usuario_id', 'nombre apellido email')
 
     return res.status(201).json({
-      message: 'Reserva creada exitosamente',
+      message: `Horario apartado: tienes ${MINUTOS_PARA_PAGAR} minutos para pagar`,
       reserva: reservaPopulada
     })
   } catch (error) {
@@ -193,7 +200,9 @@ export const cancelarReserva = async (req, res) => {
     }
 
     reserva.estado = 'cancelada'
+    reserva.expira_en = null
     await reserva.save()
+    await cancelarPagosPendientes('reserva', reserva._id)
 
     return res.status(200).json({ message: 'Reserva cancelada exitosamente' })
   } catch (error) {

@@ -4,6 +4,7 @@ import { solicitudSchema, cotizacionSchema, respuestaSchema, rechazoSchema } fro
 import { inicioDeHoy } from '../libs/torneos.js'
 import { errorProgramacion, conflictosBloque, diaKey } from '../libs/horarios.js'
 import { cotizarSolicitud, fechasSolicitud, convenioVigente } from '../libs/solicitudes.js'
+import { generarCodigo } from '../libs/codigos.js'
 
 const datosInvalidos = (res, parsed) => res.status(400).json({
   message: 'Datos inválidos',
@@ -27,7 +28,8 @@ const leerSolicitud = (body, schema = solicitudSchema) => {
 const poblar = (query) => query
   .populate('solicitante_id', 'nombre apellido email telefono')
   .populate('canchas', 'nombre precio_por_hora')
-  .populate('torneo_id', 'nombre estado')
+  // El código de acceso del torneo privado lo ven la empresa solicitante y el admin
+  .populate('torneo_id', 'nombre estado privado +codigo_acceso')
 
 // POST /api/solicitudes-torneo/cotizar — calcula el costo y revisa disponibilidad sin guardar
 export const cotizar = async (req, res) => {
@@ -205,6 +207,8 @@ export const aprobarSolicitud = async (req, res) => {
         duracion_partido_min: solicitud.duracion_partido_min,
         canchas: solicitud.canchas,
         organizador: solicitud.empresa.nombre,
+        privado: solicitud.privado,
+        codigo_acceso: solicitud.privado ? generarCodigo() : null,
         solicitud_id: solicitud._id
       })
     } catch (error) {
@@ -222,7 +226,8 @@ export const aprobarSolicitud = async (req, res) => {
     await solicitud.save()
 
     return res.status(200).json({
-      message: `Solicitud aprobada: se creó el torneo "${torneo.nombre}" y las canchas quedaron apartadas`,
+      message: `Solicitud aprobada: se creó el torneo "${torneo.nombre}" y las canchas quedaron apartadas` +
+        (torneo.privado ? `. Código de acceso: ${torneo.codigo_acceso}` : ''),
       solicitud: await poblar(SolicitudTorneo.findById(solicitud._id)),
       torneo
     })
@@ -253,6 +258,33 @@ export const rechazarSolicitud = async (req, res) => {
     })
   } catch (error) {
     console.error('Error en rechazarSolicitud:', error)
+    return res.status(500).json({ message: 'Error interno del servidor' })
+  }
+}
+
+// PUT /api/solicitudes-torneo/:id/codigo — la empresa genera un código nuevo para
+// su torneo privado (por ejemplo, si el anterior se filtró). El anterior deja de servir
+export const regenerarCodigoSolicitud = async (req, res) => {
+  try {
+    const solicitud = await SolicitudTorneo.findOne({
+      _id: req.params.id,
+      solicitante_id: req.user._id,
+      estado: 'aprobada'
+    })
+    if (!solicitud?.torneo_id) {
+      return res.status(404).json({ message: 'No hay una solicitud aprobada tuya con ese id' })
+    }
+    const torneo = await Torneo.findOneAndUpdate(
+      { _id: solicitud.torneo_id, privado: true, estado: { $in: ['activo', 'en_curso'] } },
+      { codigo_acceso: generarCodigo() },
+      { new: true }
+    ).select('+codigo_acceso')
+    if (!torneo) {
+      return res.status(400).json({ message: 'El torneo no es privado o ya terminó' })
+    }
+    return res.status(200).json({ message: 'Se generó un código de acceso nuevo', codigo_acceso: torneo.codigo_acceso })
+  } catch (error) {
+    console.error('Error en regenerarCodigoSolicitud:', error)
     return res.status(500).json({ message: 'Error interno del servidor' })
   }
 }

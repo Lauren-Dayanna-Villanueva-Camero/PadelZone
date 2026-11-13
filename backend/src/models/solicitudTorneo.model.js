@@ -95,6 +95,13 @@ const solicitudTorneoSchema = new mongoose.Schema({
     min: 0
   },
 
+  // Torneo solo para la gente de la empresa: al aprobarlo se genera un código
+  // de acceso que la empresa reparte entre sus empleados
+  privado: {
+    type: Boolean,
+    default: false
+  },
+
   inscripcion_apertura: { type: Date, required: true },
   inscripcion_cierre: { type: Date, required: true },
 

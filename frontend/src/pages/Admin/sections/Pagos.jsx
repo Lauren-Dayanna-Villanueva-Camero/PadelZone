@@ -54,6 +54,7 @@ function Pagos() {
   const { pagos, resumen } = data
   // Con soloReembolso el servidor ya devuelve solo los pagos por reembolsar
   const visibles = pagos
+  const verEfectivo = !soloReembolso && filtros.estado === 'pendiente' && filtros.metodo === 'efectivo'
 
   const confirmar = async (pago) => {
     setBusy(true)
@@ -122,8 +123,11 @@ function Pagos() {
           </div>
           <button
             type="button"
-            className={`pagos-kpi pagos-kpi--warn ${filtros.estado === 'pendiente' && filtros.metodo === 'efectivo' ? 'activo' : ''}`}
-            onClick={() => setFiltros({ ...filtrosVacios, estado: 'pendiente', metodo: 'efectivo' })}
+            className={`pagos-kpi pagos-kpi--warn ${verEfectivo ? 'activo' : ''}`}
+            onClick={() => {
+              setSoloReembolso(false)
+              setFiltros(verEfectivo ? filtrosVacios : { ...filtrosVacios, estado: 'pendiente', metodo: 'efectivo' })
+            }}
           >
             <span className="pagos-kpi-label">Efectivo por confirmar</span>
             <strong>{formatPrice(resumen.monto_pendiente_efectivo)}</strong>
@@ -132,7 +136,11 @@ function Pagos() {
           <button
             type="button"
             className={`pagos-kpi pagos-kpi--danger ${soloReembolso ? 'activo' : ''}`}
-            onClick={() => setSoloReembolso(v => !v)}
+            onClick={() => {
+              // Los reembolsos son pagos aprobados: los filtros de estado/método los ocultarían
+              if (!soloReembolso) setFiltros(filtrosVacios)
+              setSoloReembolso(v => !v)
+            }}
           >
             <span className="pagos-kpi-label">Por reembolsar</span>
             <strong>{resumen.por_reembolsar}</strong>

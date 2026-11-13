@@ -158,11 +158,14 @@ export const getPagos = async (req, res) => {
       filtro.referencia = { $regex: q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
     }
 
+    // Las tarjetas del resumen (recaudado, efectivo por confirmar, por reembolsar,
+    // por método) no dependen de los filtros de estado y método: si no, al ver
+    // "efectivo por confirmar" el recaudado y lo demás quedarían en cero
+    const { estado: _e, metodo: _m, ...filtroResumen } = filtro
+
     // Pagos aprobados de algo que se canceló: hay que devolver el dinero. Se
     // revisan todos los que cumplen el filtro (no solo los que se listan)
-    const aprobadosTodos = filtro.estado && filtro.estado !== 'aprobado'
-      ? []
-      : await Pago.find({ ...filtro, estado: 'aprobado' }).select('concepto referencia_id').lean()
+    const aprobadosTodos = await Pago.find({ ...filtroResumen, estado: 'aprobado' }).select('concepto referencia_id').lean()
     const cancelados = new Set()
     for (const c of ['reserva', 'pedido', 'torneo', 'clase']) {
       const ids = aprobadosTodos.filter(p => p.concepto === c).map(p => p.referencia_id)
@@ -171,7 +174,7 @@ export const getPagos = async (req, res) => {
     const porReembolsar = aprobadosTodos.filter(p => cancelados.has(`${p.concepto}:${p.referencia_id}`))
 
     // ?reembolso=1 → solo los que hay que reembolsar
-    const filtroLista = req.query.reembolso === '1' ? { _id: { $in: porReembolsar.map(p => p._id) } } : filtro
+    const filtroLista = req.query.reembolso === '1' ? { ...filtro, _id: { $in: porReembolsar.map(p => p._id) } } : filtro
     const [pagos, totales] = await Promise.all([
       Pago.find(filtroLista)
         .populate('usuario_id', 'nombre apellido email')
@@ -180,7 +183,7 @@ export const getPagos = async (req, res) => {
         .limit(500),
       // Totales sobre todos los pagos del filtro (la lista se limita a 500)
       Pago.aggregate([
-        { $match: filtro },
+        { $match: filtroResumen },
         {
           $group: {
             _id: { estado: '$estado', metodo: '$metodo', manual: { $eq: ['$proveedor', 'manual'] } },

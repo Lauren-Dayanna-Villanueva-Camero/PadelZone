@@ -20,6 +20,9 @@
 
 button.pagos-kpi { cursor: pointer; }
 button.pagos-kpi:hover { background: #fafbff; }
+/* Materialize pinta de verde-azulado todo button:focus; las tarjetas deben quedar blancas */
+button.pagos-kpi:focus { background: #fff; outline: none; }
+button.pagos-kpi:focus-visible { outline: 2px solid #1e3c72; outline-offset: 2px; }
 .pagos-kpi.activo { box-shadow: 0 0 0 2px #1e3c72; }
 .pagos-kpi--warn { border-left-color: #ef6c00; }
 .pagos-kpi--danger { border-left-color: #c62828; }

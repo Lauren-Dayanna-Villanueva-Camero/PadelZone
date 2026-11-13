@@ -46,7 +46,7 @@ Universidad Surcolombiana (USCO)
 - Página de clima en Neiva (API pública Open‑Meteo).
 
 **Administración (`/admin`)**
-- Estadísticas generales.
+- Dashboard con estadísticas de los últimos 7, 30 o 90 días comparadas con el periodo anterior: ingresos, reservas, ocupación de canchas y usuarios nuevos; gráficos de ingresos y reservas por día, mapa de calor de los horarios más ocupados, ocupación por cancha, ingresos por concepto y método de pago, productos más vendidos y la agenda de hoy. Una lista "Para atender" lleva directo a lo pendiente (efectivo por confirmar, reembolsos, pedidos, solicitudes de empresas). Los gráficos son SVG propios (sin librerías), con tooltip, navegación con flechas y vista en tabla.
 - CRUD de canchas, productos, torneos y slides del carrusel.
 - Gestión de reservas, pedidos (cambio de estado) y usuarios (rol / activo).
 - Calendario de todo el club (reservas, partidos y torneos) con filtro por cancha. Las reservas sin pagar se ven con borde punteado.
@@ -270,7 +270,7 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 
 | Empresa (solicitante) | Estado | Qué permite probar |
 |---|---|---|
-| Huila Tech S.A.S. (`usuario5`) | Pendiente | Aprobarla crea el torneo y aparta la Cancha 4. |
+| Huila Tech S.A.S. (`usuario5`) | Pendiente, torneo privado | Aprobarla crea el torneo, aparta la Cancha 4 y genera el código de acceso. |
 | Colegio Santa Librada (`usuario11`) | Pendiente con cruce | Una reserva de `usuario3` se cruza con el horario, así que el admin no puede aprobarla. |
 | Café Huila Exportaciones (`usuario8`) | Aprobada, convenio de 6 meses vigente | Al cotizar otro torneo en "Organiza tu torneo", `usuario8` recibe el 15 % de descuento del convenio. En "Mis solicitudes" ve el código del torneo privado y puede regenerarlo. |
 | Distribuidora El Sol (`usuario9`) | Rechazada | Se ve el motivo del rechazo. |
@@ -282,7 +282,14 @@ Si los datos ya existen, `npm run seed` no hace nada: primero hay que borrarlos 
 - `usuario12`: declaró como pareja a `usuario39`, que no tiene inscripción propia; `usuario39` ve el torneo como "Te inscribió tu pareja".
 - `usuario16` … `usuario21`: inscritos sin pareja en la Copa Comunidad.
 
-**Otros datos:** unas 45 reservas pasadas y futuras (algunas canceladas, ninguna en franjas apartadas por torneos), 17 pedidos en todos los estados, 16 inscripciones a clases (una cancelada) y cerca de 100 pagos (aprobados, en efectivo por confirmar y algunos por reembolsar).
+**Historial para el dashboard:** unos 6 meses de datos, con el club creciendo poco a poco, para que tanto el periodo de 90 días como el anterior tengan con qué compararse:
+
+- Cerca de 1.100 reservas: entre semana sobre todo de 5 a 10 p. m. y los fines de semana por la mañana; algunas canceladas y varias para hoy (agenda del dashboard). Ninguna cae en franjas apartadas por torneos.
+- Unos 40 pedidos en todos los estados (los viejos ya enviados), 30 inscripciones a clases (una cancelada) y fechas de registro de usuarios repartidas.
+- Cerca de 1.200 pagos: en línea (con algún intento rechazado), en efectivo en la sede o contraentrega, reembolsados, varios en efectivo por confirmar y algunos por reembolsar (pagados pero cancelados).
+- La solicitud pendiente de Huila Tech pide un torneo privado: al aprobarla se genera su código.
+
+La tienda conserva sus casos de prueba: el seed nunca deja un producto con menos de 2 unidades por ventas, así que siguen el agotado y el de una sola unidad.
 
 ---
 
@@ -319,12 +326,12 @@ Base: `http://localhost:5000/api`
 | **Pedidos** `/pedidos` | `GET /`, `GET /:id`, `POST /`, `PUT /:id/estado`, `PUT /:id/cancelar` |
 | **Torneos** `/torneos` | `GET /`, `GET /:id`, `GET /mis-inscripciones`, `POST /`, `PUT /:id`, `DELETE /:id`, `POST /:id/inscribir`, `DELETE /:id/cancelar-inscripcion`, `PUT /:id/cerrar-inscripciones`, `PUT /:id/reorganizar`, `PUT /:id/participantes/:participanteId`, `GET /:id/exportar`, `GET /:id/cuadro`, `PUT /:id/partidos/:partidoId`, `PUT /:id/partidos/:partidoId/horario`, `PUT /:id/reprogramar`, `GET /mis-partidos`, `PUT /:id/codigo` (regenerar código, admin) |
 | **Solicitudes de torneo** `/solicitudes-torneo` | `POST /cotizar`, `POST /`, `GET /mias`, `PUT /:id/cancelar`, `PUT /:id/codigo` (la empresa regenera su código), `GET /` (admin), `PUT /:id/aprobar` (admin), `PUT /:id/rechazar` (admin) |
-| **Pagos** `/pagos` | `GET /config`, `POST /` (iniciar pago), `POST /:id/simular`, `GET /wompi/verificar`, `POST /wompi/eventos` (webhook), `GET /mios`, `GET /:id`, `GET /` (admin), `PUT /:id/confirmar` (admin), `PUT /:id/anular` (admin) |
+| **Pagos** `/pagos` | `GET /config`, `POST /` (iniciar pago), `POST /:id/simular`, `GET /wompi/verificar`, `POST /wompi/eventos` (webhook), `GET /mios`, `GET /:id`, `GET /` (admin; `?reembolso=1` lista solo los pagos por reembolsar), `PUT /:id/confirmar` (admin), `PUT /:id/anular` (admin) |
 | **Calendario** `/calendario` | `GET /?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` (máx. 62 días; el admin ve todo el club y puede filtrar con `cancha_id`) |
 | **Clases** `/clases` | `GET /mis-inscripciones`, `GET /inscripciones`, `POST /inscripciones`, `PUT /inscripciones/:id/cancelar` |
 | **Carrusel** `/carrusel` | `GET /`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | **Media** `/media` | `GET /`, `GET /:id`, `GET /:id/archivo`, `POST /upload`, `DELETE /:id` |
-| **Admin** `/admin` | `GET /stats`, `GET /usuarios`, `PUT /usuarios/:id` |
+| **Admin** `/admin` | `GET /stats`, `GET /estadisticas?dias=7\|30\|90` (dashboard), `GET /usuarios`, `PUT /usuarios/:id` |
 
 Las operaciones de escritura sobre catálogos (canchas, productos, torneos, carrusel, media) y todo `/admin` requieren rol de administrador.
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getPagosApi, confirmarPagoApi, anularPagoApi, getErrorMessage } from '../../../services/api'
 import { formatPrice } from '../../../utils/helpers'
 import { useAdmin } from '../../../hooks/useAdmin'
@@ -12,11 +13,14 @@ const filtrosVacios = { estado: '', concepto: '', metodo: '', desde: '', hasta: 
 
 function Pagos() {
   const { loadStats } = useAdmin()
-  const [filtros, setFiltros] = useState(filtrosVacios)
+  // Enlaces del dashboard: ?ver=efectivo (por confirmar) o ?ver=reembolsos
+  const [searchParams] = useSearchParams()
+  const ver = searchParams.get('ver')
+  const [filtros, setFiltros] = useState(() => (ver === 'efectivo' ? { ...filtrosVacios, estado: 'pendiente', metodo: 'efectivo' } : filtrosVacios))
   const [data, setData] = useState({ pagos: [], resumen: null })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [soloReembolso, setSoloReembolso] = useState(false)
+  const [soloReembolso, setSoloReembolso] = useState(ver === 'reembolsos')
 
   const [detalle, setDetalle] = useState(null)
   const [anular, setAnular] = useState(null)
@@ -30,14 +34,14 @@ function Pagos() {
     setError('')
     try {
       const limpios = Object.fromEntries(Object.entries(filtros).filter(([, v]) => v))
-      const res = await getPagosApi(limpios)
+      const res = await getPagosApi(soloReembolso ? { ...limpios, reembolso: 1 } : limpios)
       if (!isCancelled()) setData(res.data)
     } catch (err) {
       if (!isCancelled()) setError(getErrorMessage(err, 'No se pudieron cargar los pagos'))
     } finally {
       if (!isCancelled()) setLoading(false)
     }
-  }, [filtros])
+  }, [filtros, soloReembolso])
 
   useEffect(() => {
     let cancelled = false
@@ -48,7 +52,8 @@ function Pagos() {
 
   const set = (campo) => (e) => setFiltros(f => ({ ...f, [campo]: e.target.value }))
   const { pagos, resumen } = data
-  const visibles = soloReembolso ? pagos.filter(p => p.requiere_reembolso) : pagos
+  // Con soloReembolso el servidor ya devuelve solo los pagos por reembolsar
+  const visibles = pagos
 
   const confirmar = async (pago) => {
     setBusy(true)

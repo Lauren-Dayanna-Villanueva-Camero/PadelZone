@@ -423,3 +423,20 @@ export const anularPagosAprobados = (concepto, id, mensaje) => Pago.updateMany(
   { concepto, referencia_id: id, estado: 'aprobado' },
   { estado: 'anulado', mensaje }
 )
+
+// Ids (de un concepto) cuyo registro está cancelado o ya no existe
+export const idsCancelados = async (concepto, ids) => {
+  if (!ids.length) return new Set()
+  const existentes = new Map()
+  if (concepto === 'reserva') {
+    for (const r of await Reserva.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(r._id), r.estado === 'cancelada')
+  } else if (concepto === 'pedido') {
+    for (const p of await Pedido.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(p._id), p.estado === 'cancelado')
+  } else if (concepto === 'clase') {
+    for (const c of await InscripcionClase.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(c._id), c.estado === 'cancelada')
+  } else {
+    const parts = await Participante.find({ _id: { $in: ids } }).populate('torneo_id', 'estado').select('torneo_id')
+    for (const p of parts) existentes.set(String(p._id), !p.torneo_id || p.torneo_id.estado === 'cancelado')
+  }
+  return new Set(ids.map(String).filter(id => !existentes.has(id) || existentes.get(id)))
+}

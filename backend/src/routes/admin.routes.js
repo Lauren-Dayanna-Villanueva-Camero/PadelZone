@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getStats, getUsuarios, updateUsuario } from '../controllers/admin.controller.js'
+import { getEstadisticas } from '../controllers/estadisticas.controller.js'
 import { authRequired, adminRequired } from '../middlewares/auth.middleware.js'
 import { validateId } from '../middlewares/validate.middleware.js'
 
@@ -9,6 +10,7 @@ const router = Router()
 router.use(authRequired, adminRequired)
 
 router.get('/stats', getStats)
+router.get('/estadisticas', getEstadisticas)
 router.get('/usuarios', getUsuarios)
 router.put('/usuarios/:id', validateId(), updateUsuario)
 

@@ -32,6 +32,8 @@ export const resetPasswordApi = (token, password) => api.post('/auth/reset-passw
 
 // ─── ADMIN ──────────────────────────────────────────
 export const getAdminStatsApi = () => api.get('/admin/stats')
+// Estadísticas del dashboard para los últimos `dias` (7, 30 o 90)
+export const getEstadisticasApi = (dias) => api.get('/admin/estadisticas', { params: { dias } })
 export const getUsuariosApi = (q) => api.get('/admin/usuarios', { params: q ? { q } : {} })
 export const updateUsuarioApi = (id, data) => api.put(`/admin/usuarios/${id}`, data)
 

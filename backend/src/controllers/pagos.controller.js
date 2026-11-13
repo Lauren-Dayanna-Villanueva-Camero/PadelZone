@@ -1,11 +1,8 @@
 import Pago from '../models/pago.model.js'
-import Reserva from '../models/reserva.model.js'
-import Pedido from '../models/pedido.model.js'
-import Participante from '../models/participante.model.js'
-import InscripcionClase from '../models/inscripcionClase.model.js'
 import { iniciarPagoSchema, simularPagoSchema, anularPagoSchema } from '../schema/pago.schema.js'
 import {
   BANCOS_PSE,
+  idsCancelados,
   MINUTOS_PARA_PAGAR,
   proveedorEnLinea,
   wompiActivo,
@@ -142,23 +139,6 @@ export const getPagoById = async (req, res) => {
   }
 }
 
-// Ids (de un concepto) cuyo registro está cancelado o ya no existe
-const idsCancelados = async (concepto, ids) => {
-  if (!ids.length) return new Set()
-  const existentes = new Map()
-  if (concepto === 'reserva') {
-    for (const r of await Reserva.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(r._id), r.estado === 'cancelada')
-  } else if (concepto === 'pedido') {
-    for (const p of await Pedido.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(p._id), p.estado === 'cancelado')
-  } else if (concepto === 'clase') {
-    for (const c of await InscripcionClase.find({ _id: { $in: ids } }).select('estado')) existentes.set(String(c._id), c.estado === 'cancelada')
-  } else {
-    const parts = await Participante.find({ _id: { $in: ids } }).populate('torneo_id', 'estado').select('torneo_id')
-    for (const p of parts) existentes.set(String(p._id), !p.torneo_id || p.torneo_id.estado === 'cancelado')
-  }
-  return new Set(ids.map(String).filter(id => !existentes.has(id) || existentes.get(id)))
-}
-
 // GET /api/pagos — solo admin. Filtros: estado, concepto, metodo, desde, hasta (YYYY-MM-DD), q (referencia)
 export const getPagos = async (req, res) => {
   try {
@@ -178,41 +158,57 @@ export const getPagos = async (req, res) => {
       filtro.referencia = { $regex: q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
     }
 
-    const pagos = await Pago.find(filtro)
-      .populate('usuario_id', 'nombre apellido email')
-      .populate('registrado_por', 'nombre apellido')
-      .sort({ createdAt: -1 })
-      .limit(500)
-
-    // Pagos aprobados de algo que se canceló: hay que devolver el dinero
-    const aprobados = pagos.filter(p => p.estado === 'aprobado')
+    // Pagos aprobados de algo que se canceló: hay que devolver el dinero. Se
+    // revisan todos los que cumplen el filtro (no solo los que se listan)
+    const aprobadosTodos = filtro.estado && filtro.estado !== 'aprobado'
+      ? []
+      : await Pago.find({ ...filtro, estado: 'aprobado' }).select('concepto referencia_id').lean()
     const cancelados = new Set()
     for (const c of ['reserva', 'pedido', 'torneo', 'clase']) {
-      const ids = aprobados.filter(p => p.concepto === c).map(p => p.referencia_id)
+      const ids = aprobadosTodos.filter(p => p.concepto === c).map(p => p.referencia_id)
       for (const id of await idsCancelados(c, ids)) cancelados.add(`${c}:${id}`)
     }
+    const porReembolsar = aprobadosTodos.filter(p => cancelados.has(`${p.concepto}:${p.referencia_id}`))
+
+    // ?reembolso=1 → solo los que hay que reembolsar
+    const filtroLista = req.query.reembolso === '1' ? { _id: { $in: porReembolsar.map(p => p._id) } } : filtro
+    const [pagos, totales] = await Promise.all([
+      Pago.find(filtroLista)
+        .populate('usuario_id', 'nombre apellido email')
+        .populate('registrado_por', 'nombre apellido')
+        .sort({ createdAt: -1 })
+        .limit(500),
+      // Totales sobre todos los pagos del filtro (la lista se limita a 500)
+      Pago.aggregate([
+        { $match: filtro },
+        {
+          $group: {
+            _id: { estado: '$estado', metodo: '$metodo', manual: { $eq: ['$proveedor', 'manual'] } },
+            monto: { $sum: '$monto' },
+            cantidad: { $sum: 1 }
+          }
+        }
+      ])
+    ])
 
     const lista = pagos.map(p => ({
       ...p.toObject(),
       requiere_reembolso: p.estado === 'aprobado' && cancelados.has(`${p.concepto}:${p.referencia_id}`)
     }))
 
-    const suma = (arr) => arr.reduce((acc, p) => acc + p.monto, 0)
-    const porMetodo = {}
-    for (const p of aprobados) porMetodo[p.metodo] = (porMetodo[p.metodo] ?? 0) + p.monto
-    const pendientesEfectivo = pagos.filter(p => p.estado === 'pendiente' && p.proveedor === 'manual')
-
-    return res.status(200).json({
-      pagos: lista,
-      resumen: {
-        total_aprobado: suma(aprobados),
-        cantidad_aprobados: aprobados.length,
-        pendientes_efectivo: pendientesEfectivo.length,
-        monto_pendiente_efectivo: suma(pendientesEfectivo),
-        por_reembolsar: lista.filter(p => p.requiere_reembolso).length,
-        por_metodo: porMetodo
+    const resumen = { total_aprobado: 0, cantidad_aprobados: 0, pendientes_efectivo: 0, monto_pendiente_efectivo: 0, por_reembolsar: porReembolsar.length, por_metodo: {} }
+    for (const g of totales) {
+      if (g._id.estado === 'aprobado') {
+        resumen.total_aprobado += g.monto
+        resumen.cantidad_aprobados += g.cantidad
+        resumen.por_metodo[g._id.metodo] = (resumen.por_metodo[g._id.metodo] ?? 0) + g.monto
+      } else if (g._id.estado === 'pendiente' && g._id.manual) {
+        resumen.pendientes_efectivo += g.cantidad
+        resumen.monto_pendiente_efectivo += g.monto
       }
-    })
+    }
+
+    return res.status(200).json({ pagos: lista, total: lista.length, resumen })
   } catch (error) {
     return responderError(res, error, 'getPagos')
   }

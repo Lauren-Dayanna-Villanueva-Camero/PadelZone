@@ -2,6 +2,9 @@
 // (contraseña 123456), canchas, productos, carrusel, reservas, pedidos, clases y
 // torneos en todos sus estados (con cuadro, resultados, horarios y canchas
 // apartadas), además de solicitudes de torneo de empresas en todos sus estados.
+// Incluye ~6 meses de historial (reservas, pedidos, clases, pagos y registros de
+// usuarios) para que el dashboard del admin tenga estadísticas y gráficos, y para
+// que también el periodo de 90 días se pueda comparar con los 90 anteriores.
 // El detalle de cada caso está en la sección "Datos de prueba" del README.
 //
 //   npm run seed           → crea los datos (si ya existen, no hace nada)
@@ -60,7 +63,11 @@ const diaKey = (offset) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 const fechaUTC = (key) => new Date(`${key}T00:00:00.000Z`)
-const haceDias = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
+const DIA_MS = 24 * 60 * 60 * 1000
+const haceDias = (n) => new Date(Date.now() - n * DIA_MS)
+// Fecha (UTC) de un día a una hora local de Colombia (UTC-5)
+const aLas = (fechaDia, hora, min = 0) => new Date(fechaDia.getTime() + (hora + 5) * 3600000 + min * 60000)
+const noFuturo = (fecha) => new Date(Math.min(fecha.getTime(), Date.now() - 10 * 60000))
 
 // ─── Catálogo ───────────────────────────────────────
 
@@ -186,7 +193,9 @@ const SOLICITUDES = [
     nombre_torneo: 'Copa Empresarial Huila Tech', tipo_torneo: 'Comunidad',
     descripcion: 'Torneo de integración para los empleados de la empresa.',
     inicio: 25, fin: 26, franja: ['08:00', '14:00'], canchas: ['Cancha 4'],
-    cupo_maximo_parejas: 8, precio_inscripcion: 0, apertura: 1, cierre: 20
+    cupo_maximo_parejas: 8, precio_inscripcion: 0, apertura: 1, cierre: 20,
+    // Pide torneo privado: al aprobarla se genera el código de acceso
+    privado: true
   },
   {
     // Pendiente con una reserva que se cruza: el admin no puede aprobarla
@@ -309,6 +318,11 @@ const inscribir = async (torneo, { parejas = [], declaradas = [], sueltos = [] }
     ...declaradas,
     ...sueltos.map(n => [n, null])
   ]
+  // Fechas escalonadas desde la apertura de inscripciones (sin pasar de hoy)
+  const inicio = torneo.inscripcion_apertura
+    ? aLas(torneo.inscripcion_apertura, 9).getTime()
+    : haceDias(20).getTime()
+  const paso = Math.min(5 * 3600000, (Date.now() - 3600000 - inicio) / (filas.length + 1))
   for (const [i, [n, pareja]] of filas.entries()) {
     const p = await Participante.create({
       torneo_id: torneo._id,
@@ -317,7 +331,7 @@ const inscribir = async (torneo, { parejas = [], declaradas = [], sueltos = [] }
       pago_confirmado: pagado || rand() < 0.4
     })
     // Orden de inscripción escalonado (importa para resolver parejas)
-    await fijarFecha(Participante, p._id, 'fecha_inscripcion', new Date(haceDias(20).getTime() + i * 3600000))
+    await fijarFecha(Participante, p._id, 'fecha_inscripcion', new Date(inicio + (i + 1) * paso))
   }
   return filas.length
 }
@@ -409,6 +423,12 @@ const seed = async () => {
   })))
   const u = (n) => usuarios[n - 1]
   resumen.usuarios = usuarios.length
+  // Registro: los 10 primeros hace 6-8 meses; el resto en los últimos ~6 meses,
+  // más seguido hacia hoy (para la estadística de usuarios nuevos)
+  await User.collection.bulkWrite(usuarios.map((x, i) => {
+    const hace = i < 10 ? entre(185, 240) : Math.round(178 * Math.pow(rand(), 1.4))
+    return { updateOne: { filter: { _id: x._id }, update: { $set: { fecha_registro: noFuturo(aLas(fechaUTC(diaKey(-hace)), entre(7, 21), entre(0, 59))) } } } }
+  }))
 
   // Canchas
   for (const c of CANCHAS) {
@@ -610,19 +630,75 @@ const seed = async () => {
     resumen.reservas++
   }
 
+  // Historial de los últimos 180 días y hoy, para las estadísticas: entre semana
+  // se juega sobre todo de 5 a 10 p. m. y los fines de semana por la mañana.
+  // Cada vez hay un poco más de reservas (el club va creciendo).
+  const horaPopular = (finDeSemana) => {
+    const x = rand()
+    if (finDeSemana) return x < 0.55 ? entre(8, 11) : x < 0.85 ? entre(16, 20) : entre(12, 15)
+    return x < 0.6 ? entre(17, 21) : x < 0.8 ? entre(7, 9) : entre(10, 16)
+  }
+  const bloqueosCache = new Map()
+  const bloqueosDe = async (canchaId, fecha) => {
+    const k = `${canchaId}-${fecha.getTime()}`
+    if (!bloqueosCache.has(k)) bloqueosCache.set(k, await bloqueosDeTorneos(canchaId, fecha))
+    return bloqueosCache.get(k)
+  }
+  resumen.reservasHistorial = 0
+  for (let d = 180; d >= 0; d--) {
+    const fecha = fechaUTC(diaKey(-d))
+    const finDeSemana = [0, 6].includes(fecha.getUTCDay())
+    const crecimiento = 0.55 + 0.65 * (1 - d / 180)
+    const n = d === 0 ? 6 : Math.round((finDeSemana ? entre(6, 10) : entre(4, 8)) * crecimiento)
+    for (let k = 0, intentos = 0; k < n && intentos < n * 4; intentos++) {
+      const cancha = elegir(canchas)
+      const hIni = horaPopular(finDeSemana)
+      const hFin = Math.min(hIni + (rand() < 0.6 ? 1 : 2), 23)
+      const ini = `${pad(hIni)}:00`
+      const fin = `${pad(hFin)}:00`
+      if (choca(cancha._id, fecha, ini, fin)) continue
+      if ((await bloqueosDe(cancha._id, fecha)).some(b => b.hora_inicio < fin && b.hora_fin > ini)) continue
+      const estado = rand() < 0.08 ? 'cancelada' : 'confirmada'
+      const r = await Reserva.create({
+        usuario_id: u(entre(1, 39))._id,
+        cancha_id: cancha._id,
+        fecha,
+        hora_inicio: ini,
+        hora_fin: fin,
+        precio: cancha.precio_por_hora * (hFin - hIni),
+        estado
+      })
+      // Se reserva entre 0 y 4 días antes de jugar
+      const creada = noFuturo(aLas(fechaUTC(diaKey(-d - entre(0, 4))), entre(7, Math.max(7, hIni - 1)), entre(0, 59)))
+      await fijarFecha(Reserva, r._id, 'fecha_creacion', creada)
+      if (estado !== 'cancelada') ocupadas.push(r)
+      k++
+      resumen.reservasHistorial++
+    }
+  }
+
   // Pedidos: descuentan stock salvo los cancelados
-  const productos = await Producto.find({ activo: true, stock: { $gt: 0 } })
-  const estados = ['pendiente', 'pendiente', 'pagado', 'pagado', 'enviado', 'enviado', 'cancelado']
+  // La "última unidad" se deja quieta para probar el stock insuficiente
+  const productos = await Producto.find({ activo: true, stock: { $gt: 1 } })
+  // Los accesorios y la ropa se venden más que las palas y las zapatillas
+  const vendibles = productos.flatMap(p => Array(['accesorios', 'ropa'].includes(p.categoria) ? 3 : 1).fill(p))
   resumen.pedidos = 0
-  for (let k = 0; k < 18; k++) {
-    const usuario = u((k % 15) + 1)
-    const estado = estados[k % estados.length]
-    const elegidos = [...new Set(Array.from({ length: entre(1, 3) }, () => elegir(productos)))]
+  for (let k = 0; k < 45; k++) {
+    const usuario = u((k % 25) + 1)
+    // Los 4 primeros son recientes para que siempre haya pedidos por gestionar
+    const hace = k < 4 ? entre(0, 2) : entre(0, 170)
+    const estado = k < 2 ? 'pendiente'
+      : k < 4 ? 'pagado'
+        : hace > 10 ? (rand() < 0.12 ? 'cancelado' : 'enviado')
+          : elegir(['pendiente', 'pagado', 'pagado', 'enviado', 'cancelado'])
+    const elegidos = [...new Set(Array.from({ length: entre(1, 3) }, () => elegir(vendibles)))]
 
     const items = []
     for (const prod of elegidos) {
       const fresco = await Producto.findById(prod._id)
-      const cantidad = Math.min(entre(1, 3), fresco.stock)
+      // Siempre quedan al menos 2 unidades en la tienda
+      const maximo = fresco.precio >= 300000 ? 1 : 3
+      const cantidad = Math.min(entre(1, maximo), fresco.stock - 2)
       if (cantidad < 1) continue
       items.push({ prod: fresco, cantidad })
     }
@@ -652,14 +728,14 @@ const seed = async () => {
     if (estado !== 'cancelado') {
       for (const it of items) await Producto.updateOne({ _id: it.prod._id }, { $inc: { stock: -it.cantidad } })
     }
-    await fijarFecha(Pedido, pedido._id, 'fecha_pedido', haceDias(entre(0, 25)))
+    await fijarFecha(Pedido, pedido._id, 'fecha_pedido', noFuturo(aLas(fechaUTC(diaKey(-hace)), entre(8, 22), entre(0, 59))))
     resumen.pedidos++
   }
 
   // Inscripciones a clases
   const niveles = ['principiante', 'intermedio', 'avanzado']
   resumen.inscripcionesClases = 0
-  for (let k = 0; k < 16; k++) {
+  for (let k = 0; k < 30; k++) {
     const usuario = u(k + 1)
     const clase = CLASES[k % CLASES.length]
     const g = (k * 7) % 3
@@ -685,7 +761,7 @@ const seed = async () => {
       fecha_nacimiento: fechaUTC(nacimiento),
       estado: k === 15 ? 'cancelada' : 'confirmada'
     })
-    await fijarFecha(InscripcionClase, ins._id, 'fecha_inscripcion', haceDias(entre(1, 30)))
+    await fijarFecha(InscripcionClase, ins._id, 'fecha_inscripcion', noFuturo(aLas(fechaUTC(diaKey(-entre(1, 170))), entre(8, 20), entre(0, 59))))
     resumen.inscripcionesClases++
   }
 
@@ -696,8 +772,13 @@ const seed = async () => {
   const detalle = (m) => m === 'tarjeta'
     ? { marca: elegir(['VISA', 'MASTERCARD']), ultimos4: String(entre(1000, 9999)) }
     : m === 'pse' ? { banco: elegir(['Bancolombia', 'Davivienda', 'Banco de Bogotá']) } : m === 'nequi' ? { telefono: `******${entre(1000, 9999)}` } : {}
-  const crearPago = async ({ concepto, id, usuario, monto, descripcion, aprobado, metodo, fecha }) => {
-    metodo ??= aprobado ? elegir(metodos) : 'efectivo'
+  // estado: 'aprobado' | 'pendiente' | 'rechazado' | 'anulado' (reembolsado).
+  // pagadoEn: cuándo entró el dinero (por defecto, al crear el pago)
+  const crearPago = async ({ concepto, id, usuario, monto, descripcion, aprobado, estado, metodo, fecha, pagadoEn, mensaje }) => {
+    estado ??= aprobado ? 'aprobado' : 'pendiente'
+    metodo ??= estado === 'pendiente' ? 'efectivo' : elegir(metodos)
+    const manual = metodo === 'efectivo'
+    const cobrado = ['aprobado', 'anulado'].includes(estado)
     const pago = await Pago.create({
       usuario_id: usuario,
       concepto,
@@ -706,22 +787,48 @@ const seed = async () => {
       descripcion,
       monto,
       metodo,
-      proveedor: metodo === 'efectivo' ? 'manual' : 'simulado',
-      estado: aprobado ? 'aprobado' : 'pendiente',
-      detalle: detalle(metodo),
-      pagado_en: aprobado ? fecha : null
+      proveedor: manual ? 'manual' : 'simulado',
+      estado,
+      detalle: estado === 'rechazado' ? { marca: 'VISA', ultimos4: '1111' } : detalle(metodo),
+      mensaje: mensaje ?? (estado === 'rechazado' ? 'Tarjeta rechazada por el banco: fondos insuficientes' : ''),
+      pagado_en: cobrado ? (pagadoEn ?? fecha) : null,
+      registrado_por: manual && cobrado ? admin._id : null
     })
     await fijarFecha(Pago, pago._id, 'createdAt', fecha)
     resumen.pagos++
   }
 
   const hoy = fechaUTC(diaKey(0))
-  for (const r of await Reserva.find({ usuario_id: { $in: usuarios.map(x => x._id) }, estado: 'confirmada' }).populate('cancha_id', 'nombre')) {
+  const haceTres = fechaUTC(diaKey(-3))
+  const minutosDespues = (fecha, min) => noFuturo(new Date(fecha.getTime() + min * 60000))
+  for (const r of await Reserva.find({ usuario_id: { $in: usuarios.map(x => x._id) } }).populate('cancha_id', 'nombre')) {
     const descripcion = `Reserva ${r.cancha_id.nombre} · ${r.fecha.toISOString().slice(0, 10)} · ${r.hora_inicio}–${r.hora_fin}`
     const base = { concepto: 'reserva', id: r._id, usuario: r.usuario_id, monto: r.precio, descripcion, fecha: r.fecha_creacion }
-    if (rand() < (r.fecha < hoy ? 0.85 : 0.55)) {
-      await crearPago({ ...base, aprobado: true })
+    const pagarEnLinea = async () => {
+      // A veces la primera tarjeta se rechaza y se paga con otro medio
+      if (rand() < 0.07) await crearPago({ ...base, estado: 'rechazado', metodo: 'tarjeta' })
+      await crearPago({ ...base, aprobado: true, fecha: minutosDespues(r.fecha_creacion, 2) })
       await Reserva.updateOne({ _id: r._id }, { pagada: true })
+    }
+
+    if (r.estado === 'cancelada') {
+      // Cancelada después de pagar: futura → reembolso pendiente; pasada → ya reembolsada
+      if (r.fecha >= hoy && rand() < 0.5) {
+        await crearPago({ ...base, aprobado: true })
+      } else if (r.fecha < hoy && rand() < 0.35) {
+        await crearPago({ ...base, estado: 'anulado', mensaje: 'Reembolso por cancelación' })
+      }
+    } else if (r.fecha < hoy) {
+      // Ya se jugó: se pagó en línea o en la sede (unas pocas recientes siguen
+      // pendientes de confirmar en la sede)
+      if (rand() < 0.78) await pagarEnLinea()
+      else if (r.fecha >= haceTres && rand() < 0.4) await crearPago({ ...base, aprobado: false })
+      else {
+        await crearPago({ ...base, aprobado: true, metodo: 'efectivo', pagadoEn: aLas(r.fecha, Number(r.hora_inicio.slice(0, 2))) })
+        await Reserva.updateOne({ _id: r._id }, { pagada: true })
+      }
+    } else if (rand() < 0.55) {
+      await pagarEnLinea()
     } else if (rand() < 0.6) {
       await crearPago({ ...base, aprobado: false }) // pagará en la sede
     }
@@ -729,7 +836,9 @@ const seed = async () => {
 
   for (const p of await Pedido.find({ usuario_id: { $in: usuarios.map(x => x._id) } })) {
     const base = { concepto: 'pedido', id: p._id, usuario: p.usuario_id, monto: p.precio_total, descripcion: `Pedido #${String(p._id).slice(-6).toUpperCase()} de la tienda`, fecha: p.fecha_pedido }
-    if (['pagado', 'enviado'].includes(p.estado)) await crearPago({ ...base, aprobado: true })
+    // Algunos enviados se pagaron contraentrega (en efectivo, al recibir)
+    if (p.estado === 'enviado' && rand() < 0.2) await crearPago({ ...base, aprobado: true, metodo: 'efectivo', pagadoEn: minutosDespues(p.fecha_pedido, 60 * 24 * entre(2, 4)) })
+    else if (['pagado', 'enviado'].includes(p.estado)) await crearPago({ ...base, aprobado: true, fecha: minutosDespues(p.fecha_pedido, 3) })
     else if (p.estado === 'pendiente' && rand() < 0.5) await crearPago({ ...base, aprobado: false }) // contraentrega
   }
 
@@ -740,7 +849,7 @@ const seed = async () => {
   }
 
   for (const ins of await InscripcionClase.find({ usuario_id: { $in: usuarios.map(x => x._id) }, estado: 'confirmada' })) {
-    if (rand() < 0.6 && ins.monto > 0) {
+    if (rand() < 0.75 && ins.monto > 0) {
       await crearPago({ concepto: 'clase', id: ins._id, usuario: ins.usuario_id, monto: ins.monto, descripcion: `Clase ${ins.clase_nombre} · ${ins.grupo} (mensualidad)`, aprobado: true, fecha: ins.fecha_inscripcion })
       await InscripcionClase.updateOne({ _id: ins._id }, { pago_confirmado: true })
     }

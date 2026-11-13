@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   getTorneosApi,
   getSolicitudesApi,
@@ -150,7 +151,9 @@ function Torneos() {
   const solicitudesRes = useAdminResource(getSolicitudesApi)
   const pendientes = solicitudesRes.items.filter(s => s.estado === 'pendiente').length
   const { loadStats } = useAdmin()
-  const [vista, setVista] = useState('torneos') // 'torneos' | 'solicitudes'
+  // ?vista=solicitudes abre directo las solicitudes de empresas (enlace del dashboard)
+  const [searchParams] = useSearchParams()
+  const [vista, setVista] = useState(() => (searchParams.get('vista') === 'solicitudes' ? 'solicitudes' : 'torneos')) // 'torneos' | 'solicitudes'
   const [canchas, setCanchas] = useState([])
 
   useEffect(() => {

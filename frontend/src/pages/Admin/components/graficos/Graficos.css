@@ -1,0 +1,192 @@
+/* Gráficos del dashboard. Colores validados contra fondo blanco:
+   serie #2a78d6 (azul), contexto #898781 (gris, ≥ 3:1), cuadrícula de líneas finas */
+.graf,
+.graf-calor-wrap {
+  --g-serie: #2a78d6;
+  --g-serie-hover: #1c5cab;
+  --g-pista: #cde2fb;
+  --g-contexto: #898781;
+  --g-grid: #ecebe6;
+  --g-base: #c3c2b7;
+  --g-tinta: #0b0b0b;
+  --g-tinta-2: #52514e;
+  --g-tenue: #898781;
+  position: relative;
+  font-family: inherit;
+}
+
+.graf { outline: none; border-radius: 8px; }
+.graf:focus-visible { box-shadow: 0 0 0 2px #9ec5f4; }
+.graf svg { display: block; overflow: visible; }
+
+.graf-grid { stroke: var(--g-grid); stroke-width: 1; shape-rendering: crispEdges; }
+.graf-base { stroke: var(--g-base); stroke-width: 1; shape-rendering: crispEdges; }
+.graf-eje {
+  fill: var(--g-tenue);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.graf-linea {
+  fill: none;
+  stroke: var(--g-serie);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.graf-linea--contexto { stroke: var(--g-contexto); }
+.graf-area { fill: var(--g-serie); fill-opacity: 0.1; }
+
+/* Punto con anillo del color de fondo (se lee sobre las líneas) */
+.graf-punto { fill: var(--g-serie); stroke: #fff; stroke-width: 2; }
+.graf-punto--contexto { fill: var(--g-contexto); }
+.graf-cruz { stroke: var(--g-base); stroke-width: 1; shape-rendering: crispEdges; pointer-events: none; }
+
+.graf-columna { fill: var(--g-serie); transition: fill 0.12s; }
+.graf-columna.is-activa { fill: var(--g-serie-hover); }
+
+/* Tooltip: el valor primero (fuerte), la etiqueta después */
+.graf-tooltip {
+  position: absolute;
+  z-index: 5;
+  transform: translate(12px, 0);
+  pointer-events: none;
+  background: #fff;
+  border: 1px solid rgba(11, 11, 11, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(1, 2, 49, 0.12);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 150px;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--g-tinta-2);
+}
+.graf-tooltip--izq { transform: translate(calc(-100% - 12px), 0); }
+.graf-tooltip--arriba { transform: translate(-50%, -100%); }
+.graf-tooltip-titulo { color: var(--g-tenue); font-size: 0.72rem; }
+.graf-tooltip-titulo::first-letter { text-transform: uppercase; }
+.graf-tooltip-fila { display: flex; align-items: center; gap: 6px; }
+.graf-tooltip-fila strong { color: var(--g-tinta); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+/* Clave de serie en forma de línea corta (no caja) */
+.graf-key {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: #2a78d6;
+  flex-shrink: 0;
+}
+.graf-key--contexto { background: #898781; }
+
+/* Barras horizontales ordenadas */
+.graf-ranking,
+.graf-medidores {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.graf-ranking li,
+.graf-medidores li {
+  display: grid;
+  grid-template-columns: minmax(80px, 42%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+.graf-ranking-nombre,
+.graf-medidor-nombre {
+  color: #2b2b38;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.graf-ranking-pista { height: 12px; display: flex; }
+.graf-ranking-barra {
+  --g-serie: #2a78d6;
+  background: var(--g-serie);
+  border-radius: 0 4px 4px 0;
+  min-width: 2px;
+  height: 100%;
+}
+.graf-ranking-valor,
+.graf-medidor-valor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+  min-width: 84px;
+}
+.graf-ranking-valor strong,
+.graf-medidor-valor strong { color: #0b0b0b; font-weight: 600; font-variant-numeric: tabular-nums; }
+.graf-ranking-valor small,
+.graf-medidor-valor small { color: #898781; font-size: 0.72rem; }
+
+/* Medidores: pista del mismo tono, más clara */
+.graf-medidor-pista {
+  height: 8px;
+  border-radius: 4px;
+  background: #cde2fb;
+  overflow: hidden;
+  display: flex;
+}
+.graf-medidor-relleno { background: #2a78d6; border-radius: 4px; height: 100%; }
+
+/* Mapa de calor */
+.graf-calor {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+}
+.graf-calor-hora {
+  font-size: 10px;
+  color: #898781;
+  text-align: left;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+.graf-calor-dia { font-size: 11px; color: #52514e; padding-right: 6px; }
+.graf-calor-celda {
+  height: 24px;
+  border-radius: 3px;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.graf-calor-celda.is-activa { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #0b0b0b; position: relative; z-index: 1; }
+
+.graf-calor-leyenda {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #898781;
+}
+.graf-calor-leyenda i { width: 16px; height: 10px; border-radius: 2px; display: inline-block; }
+.graf-calor-leyenda span:first-child { margin-right: 6px; }
+.graf-calor-leyenda span:last-child { margin-left: 6px; }
+
+.graf-vacio { color: #898781; font-size: 0.85rem; margin: 8px 0; }
+
+/* Tabla de datos (alternativa accesible a cada gráfico) */
+.graf-tabla { margin-top: 10px; font-size: 0.8rem; }
+.graf-tabla summary { cursor: pointer; color: #1e3c72; font-weight: 600; width: fit-content; }
+.graf-tabla-scroll { max-height: 260px; overflow: auto; margin-top: 8px; border: 1px solid #ecebe6; border-radius: 8px; }
+.graf-tabla table { width: 100%; border-collapse: collapse; }
+.graf-tabla th,
+.graf-tabla td {
+  padding: 5px 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid #f1f0ec;
+  white-space: nowrap;
+}
+.graf-tabla th { position: sticky; top: 0; background: #fafaf8; color: #52514e; font-weight: 600; }
+.graf-tabla th:first-child,
+.graf-tabla td:first-child { text-align: left; }
